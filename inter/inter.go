@@ -1,10 +1,10 @@
 package inter
 
 import (
-	"bufio"
 	"fmt"
-	"os"
 	"strings"
+
+	"github.com/peterh/liner"
 )
 
 type Status uint8
@@ -17,10 +17,23 @@ const (
 
 // REPL(run in go routine in main)
 func ReplCreate() {
-	reader := bufio.NewReader(os.Stdin)
+	repl := liner.NewLiner()
+	defer repl.Close()
+	repl.SetCompleter(completer)
+	// repl.SetMultiLineMode(true)
+	// repl.SetCtrlCAborts(true)
+
+	// reader := bufio.NewReader(os .Stdin)
 	for {
-		PrintPrompt()
-		input := ReadPrompt(reader)
+		// PrintPrompt()
+		// input := ReadPrompt(reader)
+
+		input, e := repl.Prompt("godb >")
+		if e != nil {
+			// fmt.Print("\nRepl deu ruim")
+			return
+		}
+		repl.AppendHistory(input)
 		if input[0] == '.' {
 			// TODO: Fazer Outros MetaComandos
 			if MetaCommand(input) == EXIT {
@@ -39,16 +52,31 @@ func ReplCreate() {
 	}
 }
 
-func PrintPrompt() {
-	fmt.Print("godb > ")
+var commands = []string{
+	".exit", ".echo", ".dump", ".out",
+	"insert", "select",
 }
 
-func ReadPrompt(b *bufio.Reader) string {
-	i, _ := b.ReadString('\n')
-	// TODO: Talvez adicionar outros tratamentos no string aqui
-	i = strings.Trim(i, "\n")
-	return i
+// completer bem basico apenas para substituir palavras
+func completer(line string) (c []string) {
+	for _, n := range commands {
+		if StartWith(n, strings.ToLower(line)) {
+			c = append(c, n)
+		}
+	}
+	return
 }
+
+// func PrintPrompt() {
+// 	fmt.Print("godb > ")
+// }
+
+// func ReadPrompt(b *bufio.Reader) string {
+// 	i, _ := b.ReadString('\n')
+// 	// TODO: Talvez adicionar outros tratamentos no string aqui
+// 	i = strings.Trim(i, "\n")
+// 	return i
+// }
 
 type StatementType uint8
 
