@@ -28,7 +28,7 @@ func ReplCreate() {
 		// PrintPrompt()
 		// input := ReadPrompt(reader)
 
-		input, e := repl.Prompt("godb >")
+		input, e := repl.Prompt("godb> ")
 		if e != nil {
 			// fmt.Print("\nRepl deu ruim")
 			return
@@ -55,6 +55,28 @@ func ReplCreate() {
 var commands = []string{
 	".exit", ".echo", ".dump", ".out",
 	"insert", "select",
+}
+
+// testar
+func WComplete(line string, pos int) (head string, completions []string, tail string) {
+	words := strings.Split(line, " ")
+	// primeiro chegar na palavra a ser cocertada
+	var idx uint8 = 0
+	pos = len(words) - 1 // retira os separadores da qtd
+	for _, w := range words {
+		l := len(w)
+		if pos > l {
+			idx += 1
+			pos -= l
+		} else {
+			break
+		}
+	}
+	// a palavra a ser autocompletada e words[idx]
+	completions = completer(words[idx])
+	head = strings.Join(words[0:idx], " ")
+	tail = strings.Join(words[idx+1:], " ")
+	return
 }
 
 // completer bem basico apenas para substituir palavras
