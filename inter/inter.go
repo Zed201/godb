@@ -1,48 +1,33 @@
 package inter
 
 import (
-	"fmt"
 	"io"
-	"os"
 	"strings"
 
+	"godb/core"
 	"godb/utils"
 
 	"github.com/peterh/liner"
 )
 
-// usada para mudar o local para onde vão os comandos
 var (
-	OutStream  string = ""
-	OutStreamW io.Writer
-	NotRec     string = "Comando não reconhecido '%s'\n"
-	ArqErro    string = "Erro ao usar o arquivo '%v'\n"
+	SetfOutStream = utils.SetfOutStream
+	OutPut        = utils.OutPut
 )
 
-var commands = []string{
-	".exit", ".echo", ".dump", ".out",
-	"insert", "select",
-}
-
-type Status uint8
-
-const (
-	SUCCESS Status = iota
-	ERROR
-	UNRECOGNIZED
-)
-
+// Enum para comandos meta, começam com .
 type MetaComT uint8
 
 const (
-	EXIT MetaComT = iota
-	OUTCHANGE
-	DUMP
-	ECHO
-	NOTCOM
+	EXIT      MetaComT = iota
+	OUTCHANGE          // trocar o stdout(esta no utils)
+	DUMP               // fazer um dump dos comandos para arquivo
+	ECHO               // fazer um echo doque é passado, não apenas entre " "
+	NOTCOM             // basico para "não comando"
 )
 
-func ProcessInput(input string) Status {
+// Processa a string que vem do repl e retorna um status, além de implementar os metacommand
+func ProcessInput(input string) utils.Status {
 	if input[0] == '.' {
 		c := strings.Split(input, " ")
 		l := len(c)
@@ -50,7 +35,7 @@ func ProcessInput(input string) Status {
 
 		switch MetaCommand(c[0]) {
 		case EXIT:
-			return ERROR
+			return utils.ERROR
 		case OUTCHANGE:
 			if l == 1 {
 				SetfOutStream("")
@@ -65,18 +50,19 @@ func ProcessInput(input string) Status {
 			}
 
 		default:
-			OutPut(NotRec, input)
+			OutPut(utils.NotRec, input)
 		}
+		// continue
 	} else {
-		Comando, status := CommandStatement(input)
-		if status == SUCCESS {
-			ExecuteStatement(&Comando)
+		Comando, status := ParserStatement(input)
+		if status == utils.SUCCESS {
+			core.ExecuteStatement(&Comando)
 		} else {
-			OutPut(NotRec, input)
+			OutPut(utils.NotRec, input)
 		}
 
 	}
-	return SUCCESS
+	return utils.SUCCESS
 }
 
 // REPL(run in go routine in main)
@@ -86,16 +72,15 @@ func ReplCreate() {
 	repl.SetWordCompleter(WComplete)
 
 	defer func() {
-		if closer, ok := OutStreamW.(io.Closer); ok {
+		if closer, ok := utils.OutStreamW.(io.Closer); ok {
 			e := closer.Close()
 			if e != nil {
-				OutPut(ArqErro, e)
+				utils.OutPut(utils.ArqErro, e)
 			}
 		}
 	}()
 
 	for {
-
 		input, e := repl.Prompt("godb> ")
 		if e != nil {
 			return
@@ -105,13 +90,13 @@ func ReplCreate() {
 		}
 		repl.AppendHistory(input)
 
-		if e := ProcessInput(input); e != SUCCESS {
+		if e := ProcessInput(input); e != utils.SUCCESS {
 			return
 		}
 	}
 }
 
-// so autocompleta a ultima palavra
+// Função para dar autocomplete no repl(Os comandos a ser autocomplete ele estao em utils)
 // TODO: Tentar talvez fazer um para qualquer palavra da linha
 func WComplete(line string, pos int) (head string, completions []string, tail string) {
 	words := strings.Split(line, " ")
@@ -119,9 +104,9 @@ func WComplete(line string, pos int) (head string, completions []string, tail st
 	return line[:len(line)-len(w)], CompleterAux(w), ""
 }
 
-// completer bem basico apenas para substituir palavras
+// Completer bem basico apenas para substituir a primeira palavra
 func CompleterAux(line string) (c []string) {
-	for _, n := range commands {
+	for _, n := range utils.Commands {
 		if utils.StartWith(n, strings.ToLower(line)) {
 			c = append(c, n)
 		}
@@ -129,19 +114,7 @@ func CompleterAux(line string) (c []string) {
 	return
 }
 
-type StatementType uint8
-
-const (
-	INSERT StatementType = iota
-	SELECT
-	UPDATE
-	NONE
-)
-
-type Statement struct {
-	Type StatementType
-}
-
+// processa os Meta comandos
 func MetaCommand(s string) MetaComT {
 	switch s {
 	case ".exit":
@@ -155,40 +128,12 @@ func MetaCommand(s string) MetaComT {
 }
 
 // TODO: Melhorar essa comparação
-func CommandStatement(s string) (Statement, Status) {
+// era para estar no core.go, mas ele da ciclo de dependência(então so chamo)
+func ParserStatement(s string) (utils.Statement, utils.Status) {
 	if utils.StartWith(s, "insert") {
-		return Statement{Type: INSERT}, SUCCESS
+		return utils.Statement{Type: utils.INSERT}, utils.SUCCESS
 	} else if utils.StartWith(s, "select") {
-		return Statement{Type: SELECT}, SUCCESS
+		return utils.Statement{Type: utils.SELECT}, utils.SUCCESS
 	}
-	return Statement{Type: NONE}, UNRECOGNIZED
-}
-
-func ExecuteStatement(s *Statement) {
-	switch s.Type {
-	case INSERT:
-		OutPut("Inserindo\n")
-	case SELECT:
-		OutPut("Selecionando\n")
-	}
-}
-
-func SetfOutStream(file string) {
-	OutStream = file
-	if len(file) != 0 {
-		f, e := os.OpenFile(file, os.O_CREATE|os.O_RDWR, 0o644)
-		if e != nil {
-			OutPut(ArqErro, file)
-			return
-		}
-		OutStreamW = io.MultiWriter(os.Stdout, f)
-	}
-}
-
-func OutPut(s string, args ...interface{}) {
-	if len(OutStream) == 0 { // apenas std.Out
-		fmt.Fprintf(os.Stdout, s, args...)
-	} else {
-		fmt.Fprintf(OutStreamW, s, args...)
-	}
+	return utils.Statement{Type: utils.NONE}, utils.UNRECOGNIZED
 }
