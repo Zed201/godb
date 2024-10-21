@@ -12,17 +12,19 @@ As partes do projeto são:
 1.
 <details>
 <summary>Interface</summary>
-
+        Funções relacionadas ao REPL, entrada e saída de dados
 <details>
 
 2.
 <details>
 <summary>Processor(Tokenizer e Parser)</summary>
-
+        Está no Inter também, pois no fim é uma parte da interface, basicamente 
+        vai interpretar os comandos e passar para o core
 <details>
 
 3.
 <details>
-<summary>Vm(Talvez não seja feita)</summary>
-
+<summary>Core</summary>
+        Implementação das execuções dos comandos, além das outras estruturas 
+        para armazenar dados e outros
 <details>
