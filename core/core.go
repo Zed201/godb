@@ -10,7 +10,7 @@ type Statement *utils.Statement
 func ExecuteStatement(s Statement) {
 	switch s.Type {
 	case utils.INSERT:
-		OutPut("Inserindo\n")
+		// OutPut("Inserindo\n")
 	case utils.SELECT:
 		OutPut("Selecionando\n")
 	}

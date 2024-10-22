@@ -78,3 +78,9 @@ func OutPut(s string, args ...interface{}) {
 		fmt.Fprintf(OutStreamW, s, args...)
 	}
 }
+
+// Adicionar palavra para o slice de comandos, basicamente palavras para o autocomplete
+// Usar para adicionar Nomes de tabelas, nomes de tabelas, campos...
+func CommaAdd(s string) {
+	Commands = append(Commands, s)
+}

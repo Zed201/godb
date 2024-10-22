@@ -18,7 +18,7 @@ As partes do projeto são:
 2.
 <details>
 <summary>Processor(Tokenizer e Parser)</summary>
-        Está no Inter também, pois no fim é uma parte da interface, basicamente 
+        Está no Inter também, basicamente 
         vai interpretar os comandos e passar para o core
 <details>
 

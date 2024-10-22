@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"godb/core"
+	"godb/processor"
 	"godb/utils"
 
 	"github.com/peterh/liner"
@@ -54,7 +55,7 @@ func ProcessInput(input string) utils.Status {
 		}
 		// continue
 	} else {
-		Comando, status := ParserStatement(input)
+		Comando, status := processor.ParserStatement(input)
 		if status == utils.SUCCESS {
 			core.ExecuteStatement(&Comando)
 		} else {
@@ -125,15 +126,4 @@ func MetaCommand(s string) MetaComT {
 		return ECHO
 	}
 	return NOTCOM
-}
-
-// TODO: Melhorar essa comparação
-// era para estar no core.go, mas ele da ciclo de dependência(então so chamo)
-func ParserStatement(s string) (utils.Statement, utils.Status) {
-	if utils.StartWith(s, "insert") {
-		return utils.Statement{Type: utils.INSERT}, utils.SUCCESS
-	} else if utils.StartWith(s, "select") {
-		return utils.Statement{Type: utils.SELECT}, utils.SUCCESS
-	}
-	return utils.Statement{Type: utils.NONE}, utils.UNRECOGNIZED
 }
