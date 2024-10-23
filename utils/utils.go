@@ -84,3 +84,7 @@ func OutPut(s string, args ...interface{}) {
 func CommaAdd(s string) {
 	Commands = append(Commands, s)
 }
+
+func CpmNCase(s, i string) bool {
+	return strings.EqualFold(s, i)
+}
