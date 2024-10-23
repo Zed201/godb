@@ -70,6 +70,7 @@ func ProcessInput(input string) utils.Status {
 				if len(l) == 0 {
 					continue
 				}
+				OutPut("Comando '%s'\n", l)
 				ProcessInput(l)
 			}
 		default:

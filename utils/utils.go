@@ -9,8 +9,9 @@ import (
 )
 
 var (
-	NotRec  string = "Comando não reconhecido '%s'\n"
-	ArqErro string = "Erro ao usar o arquivo '%v'\n"
+	NotRec   string = "Comando não reconhecido '%s'\n"
+	ArqErro  string = "Erro ao usar o arquivo '%v'\n"
+	MissingS string = "No lugar de '%s', achou '%s'\n\n"
 )
 
 // Comandos do autocomplete
