@@ -1,6 +1,7 @@
 package utils
 
 import (
+	"bufio"
 	"fmt"
 	"io"
 	"os"
@@ -15,7 +16,8 @@ var (
 // Comandos do autocomplete
 var Commands = []string{
 	".exit", ".echo", ".dump", ".out",
-	"insert", "select",
+	"insert", "select", ".read", "INSERT",
+	"SELECT", "VALUES", "FROM", "from",
 }
 
 // apenas um alias para ver se começa
@@ -36,6 +38,7 @@ type Status uint8
 const (
 	SUCCESS Status = iota
 	ERROR
+	CLOSE
 	UNRECOGNIZED
 )
 
@@ -80,6 +83,21 @@ func CommaAdd(s string) {
 	Commands = append(Commands, s)
 }
 
+func CommandsAdd(ss []string) {
+	for _, r := range ss {
+		Commands = append(Commands, r)
+	}
+}
+
 func CpmNCase(s, i string) bool {
 	return strings.EqualFold(s, i)
+}
+
+func ReadFile(name string) (*bufio.Scanner, func() error, error) {
+	f, e := os.Open(name)
+	if e != nil {
+		return nil, nil, e
+	}
+
+	return bufio.NewScanner(f), f.Close, nil
 }

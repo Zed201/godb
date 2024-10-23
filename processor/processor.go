@@ -12,7 +12,9 @@ var Output = utils.OutPut
 
 func ParserStatement(s string) (utils.StatementType, utils.Status, *Tokenizer) {
 	t := NewTokenizer(s)
+	// t.PrintAllToken()
 	T, _ := t.NextToken() // primeiro para detectar o comando
+
 	switch T {
 	case SELECT:
 		return utils.SELECT, utils.SUCCESS, t
@@ -26,6 +28,7 @@ func ParserStatement(s string) (utils.StatementType, utils.Status, *Tokenizer) {
 
 type Token int
 
+//go:generate stringer -type=Token
 const (
 	// Especiais
 	ILLEGAL Token = iota // 0
@@ -38,15 +41,16 @@ const (
 	// Outros
 	ASTERISK    // 4
 	COMMA       // 5
-	PARENTOPEN  // (
-	PARENTCLOSE // )
+	PARENTOPEN  // 6 (
+	PARENTCLOSE // 7 )
 
 	// Keywords
-	SELECT // 6
-	INSERT // 7
-	FROM   // 8
-	WHERE  // 9
-	VALUES
+	SELECT // 8
+	INSERT // 9
+	FROM   // 10
+	WHERE  // 11
+	VALUES // 12
+
 )
 
 var eof = rune(0)
@@ -111,7 +115,9 @@ func (T *Tokenizer) NextToken() (t Token, lit string) {
 		return PARENTOPEN, "("
 	case ')':
 		return PARENTCLOSE, ")"
-
+	}
+	if r == '"' || r == '\'' { // ai vai ser string entre " " ou ' '
+		return IDENTIFIER, T.ReadQuote(r)
 	}
 
 	for {
@@ -143,6 +149,27 @@ func (T *Tokenizer) NextToken() (t Token, lit string) {
 		t = IDENTIFIER
 	}
 	return
+}
+
+func (T *Tokenizer) ReadQuote(s rune) string {
+	r := T.read()
+	var buf bytes.Buffer
+	for r != s {
+		if r == eof {
+			break
+		}
+		buf.WriteRune(r)
+		r = T.read()
+	}
+	return buf.String()
+}
+
+func (T *Tokenizer) PrintAllToken() {
+	for !T.end {
+		t, l := T.NextToken()
+		Output("Type: '%v', lit: '%s'\n", t, l)
+	}
+	Output("------")
 }
 
 // TODO:

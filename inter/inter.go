@@ -2,6 +2,8 @@ package inter
 
 import (
 	"io"
+	"os"
+	"path/filepath"
 	"strings"
 
 	"godb/core"
@@ -24,6 +26,7 @@ const (
 	OUTCHANGE          // trocar o stdout(esta no utils)
 	DUMP               // fazer um dump dos comandos para arquivo
 	ECHO               // fazer um echo doque é passado, não apenas entre " "
+	READ               // basicamente le os comandos de um arquivo
 	NOTCOM             // basico para "não comando"
 )
 
@@ -36,7 +39,7 @@ func ProcessInput(input string) utils.Status {
 
 		switch MetaCommand(c[0]) {
 		case EXIT:
-			return utils.ERROR
+			return utils.CLOSE
 		case OUTCHANGE:
 			if l == 1 {
 				SetfOutStream("")
@@ -49,7 +52,26 @@ func ProcessInput(input string) utils.Status {
 			} else {
 				OutPut("%s\n", strings.Join(c[1:], " "))
 			}
+		case READ:
+			s, co, e := utils.ReadFile(c[l-1])
 
+			if e != nil {
+				OutPut(utils.ArqErro, c[l-1])
+				return utils.ERROR
+			}
+			defer func() {
+				if e := co(); e != nil {
+					OutPut(utils.ArqErro, c[l-1])
+				}
+			}()
+			// OutPut("Lendo arquivo '%s'\n", c[l-1])
+			for s.Scan() {
+				l := s.Text()
+				if len(l) == 0 {
+					continue
+				}
+				ProcessInput(l)
+			}
 		default:
 			OutPut(utils.NotRec, input)
 		}
@@ -66,11 +88,26 @@ func ProcessInput(input string) utils.Status {
 	return utils.SUCCESS
 }
 
+// Adicionar os nomes de arquivos e diretorios para o autocomplete
+func AddDir() {
+	dir := "./"
+	var s []string
+	_ = filepath.WalkDir(dir, func(path string, d os.DirEntry, e error) error {
+		if e == nil {
+			s = append(s, path)
+		}
+		return nil
+	})
+
+	utils.CommandsAdd(s)
+}
+
 // REPL(run in go routine in main)
 func ReplCreate() {
 	repl := liner.NewLiner()
 	defer repl.Close()
 	repl.SetWordCompleter(WComplete)
+	AddDir()
 
 	defer func() {
 		if closer, ok := utils.OutStreamW.(io.Closer); ok {
@@ -91,9 +128,10 @@ func ReplCreate() {
 		}
 		repl.AppendHistory(input)
 
-		if e := ProcessInput(input); e != utils.SUCCESS {
+		if e := ProcessInput(input); e == utils.CLOSE {
 			return
 		}
+
 	}
 }
 
@@ -124,6 +162,8 @@ func MetaCommand(s string) MetaComT {
 		return OUTCHANGE
 	case ".echo":
 		return ECHO
+	case ".read":
+		return READ
 	}
 	return NOTCOM
 }
