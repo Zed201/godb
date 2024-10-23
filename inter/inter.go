@@ -55,9 +55,9 @@ func ProcessInput(input string) utils.Status {
 		}
 		// continue
 	} else {
-		Comando, status := processor.ParserStatement(input)
+		ComandoT, status, Tokenizer := processor.ParserStatement(input)
 		if status == utils.SUCCESS {
-			core.ExecuteStatement(&Comando)
+			core.ExecuteStatement(ComandoT, Tokenizer)
 		} else {
 			OutPut(utils.NotRec, input)
 		}

@@ -1,17 +1,29 @@
 package core
 
-import "godb/utils"
+import (
+	"godb/processor"
+	"godb/utils"
+)
 
 var OutPut = utils.OutPut
 
-type Statement *utils.Statement
-
 // Implementar a execução do comando
-func ExecuteStatement(s Statement) {
-	switch s.Type {
+func ExecuteStatement(s utils.StatementType, T *processor.Tokenizer) {
+	switch s {
 	case utils.INSERT:
-		// OutPut("Inserindo\n")
+		OutPut("Inserindo\n")
+		InsertExec(processor.InsertParse(T))
+
 	case utils.SELECT:
 		OutPut("Selecionando\n")
+		SelectExec(processor.SelectParse(T))
 	}
+}
+
+// TODO:
+
+func InsertExec(S processor.InsertStruct) {
+}
+
+func SelectExec(S processor.SelectStruct) {
 }

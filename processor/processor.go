@@ -10,14 +10,18 @@ import (
 
 var Output = utils.OutPut
 
-func ParserStatement(s string) (utils.Statement, utils.Status) {
-	// t := NewTokenizer(s)
-	// if utils.StartWith(s, "INSERT") || utils.StartWith(s, "insert") {
-	// 	return utils.Statement{Type: utils.INSERT}, utils.SUCCESS
-	// } else if utils.StartWith(s, "SELECT") || utils.StartWith(s, "select") {
-	// 	return utils.Statement{Type: utils.SELECT}, utils.SUCCESS
-	// }
-	return utils.Statement{Type: utils.NONE}, utils.UNRECOGNIZED
+func ParserStatement(s string) (utils.StatementType, utils.Status, *Tokenizer) {
+	t := NewTokenizer(s)
+	T, _ := t.NextToken() // primeiro para detectar o comando
+	switch T {
+	case SELECT:
+		return utils.SELECT, utils.SUCCESS, t
+	case INSERT:
+		return utils.INSERT, utils.SUCCESS, t
+	default:
+		return utils.NONE, utils.UNRECOGNIZED, nil
+
+	}
 }
 
 type Token int
@@ -41,8 +45,8 @@ const (
 	SELECT // 6
 	INSERT // 7
 	FROM   // 8
-	// TODO: Implementar
-	WHERE // 9
+	WHERE  // 9
+	VALUES
 )
 
 var eof = rune(0)
@@ -131,8 +135,32 @@ func (T *Tokenizer) NextToken() (t Token, lit string) {
 		t = INSERT
 	} else if Cpm(lit, "FROM") {
 		t = FROM
+	} else if Cpm(lit, "WHERE") {
+		t = WHERE
+	} else if Cpm(lit, "VALUES") {
+		t = VALUES
 	} else {
 		t = IDENTIFIER
 	}
 	return
+}
+
+// TODO:
+type InsertStruct struct{}
+
+func InsertParse(T *Tokenizer) InsertStruct {
+	return InsertStruct{}
+}
+
+type SelectStruct struct {
+	TableName    string
+	filds        []string
+	WhereClauses map[string]string
+	// os where basicamente vai mapear os valores que poderiam ser
+	// Por enquanto lidando apenas com valores unicos e a conversão vem na parte do core,
+	// pois la ele vai saber os tipos
+}
+
+func SelectParse(T *Tokenizer) SelectStruct {
+	return SelectStruct{}
 }

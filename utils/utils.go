@@ -48,11 +48,6 @@ const (
 	NONE
 )
 
-// TODO: Atualizar para ele receber mais elementos do parser
-type Statement struct {
-	Type StatementType
-}
-
 // usada para mudar o local para onde vao os comandos
 var (
 	OutStream  string = ""
