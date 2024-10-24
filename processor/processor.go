@@ -12,7 +12,14 @@ var Output = utils.OutPut
 
 func ParserStatement(s string) (utils.StatementType, utils.Status, *Tokenizer) {
 	t := NewTokenizer(s)
-	// t.PrintAllToken()
+	// var buf bytes.Buffer
+	// copy(&buf, t.buf)
+	// D := &Tokenizer{
+	// 	buf: bufio.NewReader(&buf),
+	// 	end: t.end,
+	// }
+	// D.PrintAllToken() // tentei copiar mas por algum motivo nunca faz deepcopy
+	// Output("'%v'\n", t.TokenLitSlice())
 	T, _ := t.NextToken() // primeiro para detectar o comando
 	switch T {
 	case SELECT:
@@ -26,9 +33,10 @@ func ParserStatement(s string) (utils.StatementType, utils.Status, *Tokenizer) {
 	// return utils.NONE, utils.UNRECOGNIZED, nil
 }
 
+//go:generate stringer -type=Token
+
 type Token int
 
-//go:generate stringer -type=Token
 const (
 	// Especiais
 	ILLEGAL Token = iota // 0
@@ -50,6 +58,7 @@ const (
 	FROM   // 10
 	WHERE  // 11
 	VALUES // 12
+	INTO
 
 	// CmpSym
 	EQUAL
@@ -109,7 +118,7 @@ func isEspecial(r rune) bool {
 	return r == ',' || r == '*' || r == '(' || r == ')' || r == '=' || r == '>' || r == '<'
 }
 
-// basicamente ignorar os dados de
+// TODO: Talvez fazer logo tudo, aí depois ir consumindo de um array
 func (T *Tokenizer) NextToken() (t Token, lit string) {
 	var buf bytes.Buffer
 
@@ -159,6 +168,8 @@ func (T *Tokenizer) NextToken() (t Token, lit string) {
 		t = WHERE
 	} else if Cpm(lit, "VALUES") {
 		t = VALUES
+	} else if Cpm(lit, "INTO") {
+		t = INTO
 	} else {
 		t = IDENTIFIER
 	}
@@ -209,11 +220,23 @@ func (T *Tokenizer) ReadCmp() (t Token, l string) {
 }
 
 func (T *Tokenizer) PrintAllToken() {
+	r := T.TokenLitSlice()
+	for _, t := range r {
+		Output("'%v'\n", t)
+	}
+}
+
+type TokenLit struct {
+	T Token
+	L string
+}
+
+func (T *Tokenizer) TokenLitSlice() (r []TokenLit) {
 	for !T.end {
 		t, l := T.NextToken()
-		Output("Type: '%v', lit: '%s'\n", t, l)
+		r = append(r, TokenLit{T: t, L: l})
 	}
-	Output("------")
+	return r
 }
 
 // TODO:
@@ -223,8 +246,89 @@ type InsertStruct struct {
 	// Basicamente vai colocar tudo como string depois no core converte
 }
 
-func InsertParse(T *Tokenizer) InsertStruct {
-	return InsertStruct{}
+// TODO: Melhorar o codigo
+// insert into <tableName> (cols,...) values (values,...)
+func InsertParse(T *Tokenizer) *InsertStruct {
+	var I InsertStruct
+	I.Fields = make(map[string]string)
+
+	// INTO
+	t, l := T.NextToken()
+	if t != INTO {
+		Output(utils.MissingS, INTO, l)
+		return nil
+	}
+
+	// <tableName>
+	t, l = T.NextToken()
+	if t != IDENTIFIER {
+		Output(utils.MissingS, "TableName", l)
+		return nil
+	}
+
+	I.TableName = l
+	// (cols...)
+	t, l = T.NextToken()
+	if t != PARENTOPEN {
+		Output(utils.MissingS, PARENTOPEN, l)
+		return nil
+	}
+
+	var cols []string
+	// pega o primeiro col
+
+	t, l = T.NextToken()
+	for t != PARENTCLOSE {
+		if t == IDENTIFIER {
+			cols = append(cols, l)
+		} else if t != COMMA && t != IDENTIFIER {
+			Output(utils.MissingS, COMMA, l)
+			return nil
+		}
+		t, l = T.NextToken()
+	}
+
+	// VALUES
+	t, l = T.NextToken()
+	if t != VALUES {
+		Output(utils.MissingS, VALUES, l)
+		return nil
+	}
+	// Começo dos valores
+	t, l = T.NextToken()
+	if t != PARENTOPEN {
+		Output(utils.MissingS, PARENTOPEN, l)
+		return nil
+	}
+
+	var values []string
+	t, l = T.NextToken()
+	for t != PARENTCLOSE {
+		if t == IDENTIFIER {
+			values = append(values, l)
+		} else if t != COMMA && t != IDENTIFIER {
+			Output(utils.MissingS, COMMA, l)
+			return nil
+		}
+
+		t, l = T.NextToken()
+	}
+
+	// se as quantidades forem diferentes
+	v, c := len(values), len(cols)
+	if v > c {
+		Output("Mais valores que colunas %v\n\n", values[c:])
+		return nil
+	} else if c > v {
+		Output("Falta colunas para os valores %v\n\n", cols[v:])
+		return nil
+	}
+	// TODO: Fazer de uma forma melhor isso aqui
+	for i, v := range cols {
+		I.Fields[v] = values[i]
+	}
+
+	return &I
 }
 
 type CmpSet struct {

@@ -11,8 +11,12 @@ var OutPut = utils.OutPut
 func ExecuteStatement(s utils.StatementType, T *processor.Tokenizer) {
 	switch s {
 	case utils.INSERT:
-		OutPut("Inserindo\n")
-		// InsertExec(processor.InsertParse(T))
+		// OutPut("Inserindo\n")
+		s := processor.InsertParse(T)
+		if s == nil {
+			return
+		}
+		InsertExec(*s)
 
 	case utils.SELECT:
 		// OutPut("Selecionando\n")
@@ -28,6 +32,7 @@ func ExecuteStatement(s utils.StatementType, T *processor.Tokenizer) {
 // TODO:
 
 func InsertExec(S processor.InsertStruct) {
+	OutPut("'%v'\n", S)
 }
 
 func SelectExec(S processor.SelectStruct) {
