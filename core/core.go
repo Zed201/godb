@@ -26,6 +26,12 @@ func ExecuteStatement(s utils.StatementType, T *processor.Tokenizer) {
 			return
 		}
 		SelectExec(*s)
+	case utils.CREATE:
+		s := processor.CreateParser(T)
+		if s == nil {
+			return
+		}
+		OutPut("%v\n", *s)
 	}
 }
 

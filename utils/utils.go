@@ -49,6 +49,7 @@ const (
 	INSERT StatementType = iota
 	SELECT
 	UPDATE
+	CREATE
 	NONE
 )
 

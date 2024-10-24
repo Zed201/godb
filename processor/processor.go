@@ -3,6 +3,7 @@ package processor
 import (
 	"bufio"
 	"bytes"
+	"strconv"
 	"strings"
 
 	"godb/utils"
@@ -26,6 +27,8 @@ func ParserStatement(s string) (utils.StatementType, utils.Status, *Tokenizer) {
 		return utils.SELECT, utils.SUCCESS, t
 	case INSERT:
 		return utils.INSERT, utils.SUCCESS, t
+	case CREATE:
+		return utils.CREATE, utils.SUCCESS, t
 	default:
 		return utils.NONE, utils.UNRECOGNIZED, nil
 
@@ -59,6 +62,7 @@ const (
 	WHERE  // 11
 	VALUES // 12
 	INTO
+	CREATE
 
 	// CmpSym
 	EQUAL
@@ -67,6 +71,15 @@ const (
 	LESSEQUAL
 	GREATER
 	GREATEREQUAL
+
+	// sql col basic type
+	ParserVARCHAR
+	ParserFLOAT
+	ParserINT
+	ParserBOOL
+
+	ParserDATABASE
+	ParserTABLE
 )
 
 var eof = rune(0)
@@ -157,7 +170,7 @@ func (T *Tokenizer) NextToken() (t Token, lit string) {
 	}
 
 	lit = buf.String()
-
+	// TODO: Melhorar
 	if Cpm(lit, "SELECT") {
 		t = SELECT
 	} else if Cpm(lit, "INSERT") {
@@ -170,6 +183,20 @@ func (T *Tokenizer) NextToken() (t Token, lit string) {
 		t = VALUES
 	} else if Cpm(lit, "INTO") {
 		t = INTO
+	} else if Cpm(lit, "VARCHAR") {
+		t = ParserVARCHAR
+	} else if Cpm(lit, "FLOAT") {
+		t = ParserFLOAT
+	} else if Cpm(lit, "INT") {
+		t = ParserINT
+	} else if Cpm(lit, "BOOL") {
+		t = ParserBOOL
+	} else if Cpm(lit, "DATABASE") {
+		t = ParserDATABASE
+	} else if Cpm(lit, "TABLE") {
+		t = ParserTABLE
+	} else if Cpm(lit, "CREATE") {
+		t = CREATE
 	} else {
 		t = IDENTIFIER
 	}
@@ -405,4 +432,112 @@ func SelectParse(T *Tokenizer) *SelectStruct {
 
 	}
 	return &S
+}
+
+//go:generate stringer -type=Ctype
+type Ctype uint8 // create type
+
+const (
+	TABLE Ctype = iota
+	DATABASE
+)
+
+//go:generate stringer -type=ColsType
+type ColsType uint8
+
+// os basicos só para ter um exemplo
+const (
+	VARCHAR ColsType = iota // string normal, cada rune é 4 bytes
+	INT                     // equivalente ao i32, 4 bytes
+	FLOAT                   // f32, 4 bytes
+	BOOL                    // 1 byte, 0xFF -> True, 0x0 -> False
+)
+
+type ColTStruct struct {
+	Type   ColsType
+	OffSet int64 // tamanho do offset
+}
+
+type CreateStruct struct {
+	Type Ctype
+	Name string
+	// se for TABLE tem de ter as colunas, apenas tipos sem modificadores
+	Cols map[string]ColTStruct
+}
+
+func AuxConvert(c Token) ColsType {
+	switch c {
+	case ParserVARCHAR:
+		return VARCHAR
+	case ParserINT:
+		return INT
+	case ParserFLOAT:
+		return FLOAT
+	case ParserBOOL:
+		return BOOL
+	}
+	return INT
+}
+
+// TODO: Testar
+// Create <database/table> <name> (cols types,...)
+func CreateParser(T *Tokenizer) *CreateStruct {
+	var C CreateStruct
+	C.Cols = make(map[string]ColTStruct)
+
+	t, l := T.NextToken()
+	if t != ParserTABLE && t != ParserDATABASE {
+		Output(utils.MissingS, "Table ou Database", l)
+		return nil
+	}
+	if t == ParserTABLE {
+		C.Type = TABLE
+	} else {
+		C.Type = DATABASE
+	}
+
+	t, l = T.NextToken()
+	if t != IDENTIFIER {
+		Output(utils.MissingS, "Name", l)
+		return nil
+	}
+	C.Name = l
+
+	t, l = T.NextToken()
+	if t != PARENTOPEN {
+		Output(utils.MissingS, PARENTOPEN, l)
+	}
+
+	t, l = T.NextToken()
+	for t != PARENTCLOSE {
+		if t != IDENTIFIER && t != COMMA {
+			// l == colName
+			t, L := T.NextToken()
+			if t == PARENTCLOSE {
+				break
+			}
+			var I int64 = 1 // (byte offset)padrão do bool
+			if t != ParserINT && t != ParserBOOL && t != ParserFLOAT && t != ParserVARCHAR && t != COMMA {
+				Output(utils.MissingS, "Type", L)
+				return nil
+			} else if t == ParserVARCHAR {
+				_, _ = T.NextToken() // ( do varchar
+				numT, numL := T.NextToken()
+				if numT == IDENTIFIER {
+					// cada rune tem 4 bytes
+					i, e := strconv.ParseInt(numL, 10, 64)
+					if e != nil {
+						Output("Erro ao converter String para Int\n")
+						return nil
+					}
+					I = 4 * i
+				}
+			} else if t == ParserINT || t == ParserFLOAT {
+				I = 4
+			}
+			C.Cols[L] = ColTStruct{Type: AuxConvert(t), OffSet: I}
+		}
+		t, l = T.NextToken()
+	}
+	return &C
 }
