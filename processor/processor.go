@@ -11,16 +11,14 @@ import (
 
 var Output = utils.OutPut
 
+var debug bool = false
+
 func ParserStatement(s string) (utils.StatementType, utils.Status, *Tokenizer) {
 	t := NewTokenizer(s)
-	// var buf bytes.Buffer
-	// copy(&buf, t.buf)
-	// D := &Tokenizer{
-	// 	buf: bufio.NewReader(&buf),
-	// 	end: t.end,
-	// }
-	// D.PrintAllToken() // tentei copiar mas por algum motivo nunca faz deepcopy
-	// Output("'%v'\n", t.TokenLitSlice())
+	if debug {
+		t.PrintAllToken()
+		return utils.NONE, utils.UNRECOGNIZED, nil
+	}
 	T, _ := t.NextToken() // primeiro para detectar o comando
 	switch T {
 	case SELECT:
@@ -455,7 +453,7 @@ const (
 
 type ColTStruct struct {
 	Type   ColsType
-	OffSet int64 // tamanho do offset
+	OffSet int // tamanho do offset
 }
 
 type CreateStruct struct {
@@ -465,7 +463,7 @@ type CreateStruct struct {
 	Cols map[string]ColTStruct
 }
 
-func AuxConvert(c Token) ColsType {
+func ParserToType(c Token) ColsType {
 	switch c {
 	case ParserVARCHAR:
 		return VARCHAR
@@ -502,42 +500,73 @@ func CreateParser(T *Tokenizer) *CreateStruct {
 		return nil
 	}
 	C.Name = l
+	if C.Type == DATABASE {
+		return &C
+	}
 
 	t, l = T.NextToken()
 	if t != PARENTOPEN {
 		Output(utils.MissingS, PARENTOPEN, l)
+		return nil
 	}
 
-	t, l = T.NextToken()
 	for t != PARENTCLOSE {
-		if t != IDENTIFIER && t != COMMA {
-			// l == colName
-			t, L := T.NextToken()
-			if t == PARENTCLOSE {
-				break
-			}
-			var I int64 = 1 // (byte offset)padrão do bool
-			if t != ParserINT && t != ParserBOOL && t != ParserFLOAT && t != ParserVARCHAR && t != COMMA {
-				Output(utils.MissingS, "Type", L)
-				return nil
-			} else if t == ParserVARCHAR {
-				_, _ = T.NextToken() // ( do varchar
-				numT, numL := T.NextToken()
-				if numT == IDENTIFIER {
-					// cada rune tem 4 bytes
-					i, e := strconv.ParseInt(numL, 10, 64)
-					if e != nil {
-						Output("Erro ao converter String para Int\n")
-						return nil
-					}
-					I = 4 * i
-				}
-			} else if t == ParserINT || t == ParserFLOAT {
-				I = 4
-			}
-			C.Cols[L] = ColTStruct{Type: AuxConvert(t), OffSet: I}
+		t, colName := T.NextToken()
+		if t == PARENTCLOSE {
+			break
 		}
-		t, l = T.NextToken()
+		if t == COMMA {
+			t, colName = T.NextToken()
+		}
+		if t != IDENTIFIER {
+			Output(utils.MissingS, "ColName", colName)
+			return nil
+		}
+
+		ColTyp, l := T.NextToken()
+		if !isSqlType(ColTyp) {
+			Output(utils.MissingS, "ColType", l)
+			return nil
+		}
+
+		var CS ColTStruct
+		CS.OffSet = 4
+
+		if ColTyp == ParserVARCHAR { // calcular o tamanho colocado dps
+			t, l = T.NextToken()
+			if t != PARENTOPEN {
+				Output(utils.MissingS, "(", l)
+				return nil
+			}
+			t, Qtd := T.NextToken()
+			if t != IDENTIFIER {
+				Output(utils.MissingS, "Quantidade", Qtd)
+				return nil
+			}
+
+			i, e := strconv.Atoi(Qtd)
+			if e != nil {
+				Output("Erro ao converter quantidade")
+				return nil
+			}
+
+			CS.OffSet = 4 * i
+			t, l = T.NextToken()
+			if t != PARENTCLOSE {
+				Output(utils.MissingS, ")", l)
+			}
+
+		} else if ColTyp == ParserBOOL {
+			CS.OffSet = 1
+		}
+
+		CS.Type = ParserToType(ColTyp)
+		C.Cols[colName] = CS
+
 	}
 	return &C
+}
+
+func isSqlType(t Token) bool {
+	return t == ParserINT || t == ParserBOOL || t == ParserFLOAT || t == ParserVARCHAR
 }
