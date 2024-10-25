@@ -80,7 +80,10 @@ func ProcessInput(input string) utils.Status {
 	} else {
 		ComandoT, status, Tokenizer := processor.ParserStatement(input)
 		if status == utils.SUCCESS {
-			core.ExecuteStatement(ComandoT, Tokenizer)
+			_ = core.ExecuteStatement(ComandoT, Tokenizer)
+			// if s == utils.ERROR {
+			// ja printa a mensagem de erro no parser
+			// }
 		} else {
 			OutPut(utils.NotRec, input)
 		}
