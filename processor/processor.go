@@ -452,8 +452,8 @@ const (
 )
 
 type ColTStruct struct {
-	Type   ColsType
-	OffSet int // tamanho do offset
+	Type ColsType
+	Size int // tamanho do offset
 }
 
 type CreateStruct struct {
@@ -530,7 +530,7 @@ func CreateParser(T *Tokenizer) *CreateStruct {
 		}
 
 		var CS ColTStruct
-		CS.OffSet = 4
+		CS.Size = 4
 
 		if ColTyp == ParserVARCHAR { // calcular o tamanho colocado dps
 			t, l = T.NextToken()
@@ -550,14 +550,14 @@ func CreateParser(T *Tokenizer) *CreateStruct {
 				return nil
 			}
 
-			CS.OffSet = 4 * i
+			CS.Size = 4 * i
 			t, l = T.NextToken()
 			if t != PARENTCLOSE {
 				Output(utils.MissingS, ")", l)
 			}
 
 		} else if ColTyp == ParserBOOL {
-			CS.OffSet = 1
+			CS.Size = 1
 		}
 
 		CS.Type = ParserToType(ColTyp)

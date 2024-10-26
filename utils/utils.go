@@ -22,6 +22,7 @@ var Commands = []string{
 	".exit", ".echo", ".dump", ".out",
 	"insert", "select", ".read", "INSERT",
 	"SELECT", "VALUES", "FROM", "from",
+	".use", ".db", "create", "CREATE",
 }
 
 // apenas um alias para ver se começa

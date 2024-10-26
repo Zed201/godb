@@ -6,6 +6,7 @@ import (
 	"os/signal"
 	"syscall"
 
+	"godb/core"
 	"godb/inter"
 )
 
@@ -17,5 +18,6 @@ func main() {
 		sigs <- syscall.SIGINT
 	}()
 	<-sigs
+	_ = core.DBUSING.SaveBinary()
 	fmt.Println("\nSaindo")
 }

@@ -27,56 +27,88 @@ const (
 	DUMP               // fazer um dump dos comandos para arquivo
 	ECHO               // fazer um echo doque é passado, não apenas entre " "
 	READ               // basicamente le os comandos de um arquivo
+	USE                // usa um dos arquivos binarios que é a database
+	DB                 // ver informações do DB atual
 	NOTCOM             // basico para "não comando"
 )
+
+func ProcessDotComand(input string) utils.Status {
+	c := strings.Split(input, " ")
+	l := len(c)
+	// TODO: Fazer Outros MetaComandos
+
+	switch MetaCommand(c[0]) {
+	case EXIT:
+		return utils.CLOSE
+	case OUTCHANGE:
+		if l == 1 {
+			SetfOutStream("")
+		} else {
+			SetfOutStream(c[l-1])
+		}
+	case ECHO:
+		if l == 1 {
+			OutPut(" ")
+		} else {
+			OutPut("%s\n", strings.Join(c[1:], " "))
+		}
+	case READ:
+		s, co, e := utils.ReadFile(c[l-1])
+
+		if e != nil {
+			OutPut(utils.ArqErro, c[l-1])
+			return utils.ERROR
+		}
+		defer func() {
+			if e := co(); e != nil {
+				OutPut(utils.ArqErro, c[l-1])
+			}
+		}()
+		// OutPut("Lendo arquivo '%s'\n", c[l-1])
+		for s.Scan() {
+			l := s.Text()
+			if len(l) == 0 {
+				continue
+			}
+			OutPut("--> '%s'\n", l)
+			ProcessInput(l)
+		}
+	case USE:
+		if l == 1 || l > 2 {
+			OutPut("Erro ao usar o comando .use\n")
+			return utils.ERROR
+		}
+
+		if core.DBUSING != nil {
+			e := core.DBUSING.SaveBinary()
+			if e != nil {
+				OutPut("Erro ao salvar um banco de dados\n")
+				return utils.ERROR
+			}
+		}
+
+		e := core.ReadBinaryDB(c[l-1])
+		if e != nil {
+			OutPut("Erro ao ler banco de dados\n")
+			return utils.ERROR
+		}
+
+	case DB:
+		if core.DBUSING == nil {
+			OutPut("Nenhum banco de dados selecionado\n")
+			return utils.ERROR
+		}
+		OutPut("'%v'\n", core.DBUSING)
+	default:
+		OutPut(utils.NotRec, input)
+	}
+	return utils.SUCCESS
+}
 
 // Processa a string que vem do repl e retorna um status, além de implementar os metacommand
 func ProcessInput(input string) utils.Status {
 	if input[0] == '.' {
-		c := strings.Split(input, " ")
-		l := len(c)
-		// TODO: Fazer Outros MetaComandos
-
-		switch MetaCommand(c[0]) {
-		case EXIT:
-			return utils.CLOSE
-		case OUTCHANGE:
-			if l == 1 {
-				SetfOutStream("")
-			} else {
-				SetfOutStream(c[l-1])
-			}
-		case ECHO:
-			if l == 1 {
-				OutPut(" ")
-			} else {
-				OutPut("%s\n", strings.Join(c[1:], " "))
-			}
-		case READ:
-			s, co, e := utils.ReadFile(c[l-1])
-
-			if e != nil {
-				OutPut(utils.ArqErro, c[l-1])
-				return utils.ERROR
-			}
-			defer func() {
-				if e := co(); e != nil {
-					OutPut(utils.ArqErro, c[l-1])
-				}
-			}()
-			// OutPut("Lendo arquivo '%s'\n", c[l-1])
-			for s.Scan() {
-				l := s.Text()
-				if len(l) == 0 {
-					continue
-				}
-				OutPut("--> '%s'\n", l)
-				ProcessInput(l)
-			}
-		default:
-			OutPut(utils.NotRec, input)
-		}
-		// continue
+		return ProcessDotComand(input)
 	} else {
 		ComandoT, status, Tokenizer := processor.ParserStatement(input)
 		if status == utils.SUCCESS {
@@ -168,6 +200,10 @@ func MetaCommand(s string) MetaComT {
 		return ECHO
 	case ".read":
 		return READ
+	case ".use":
+		return USE
+	case ".db":
+		return DB
 	}
 	return NOTCOM
 }
