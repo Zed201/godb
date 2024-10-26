@@ -133,7 +133,7 @@ func ByteToInt(s []byte) (interface{}, error) {
 }
 
 func IntToByte(s interface{}) ([]byte, error) {
-	i, ok := v.(int)
+	i, ok := s.(int32)
 
 	if !ok {
 		return nil, errors.New("Esperado Numero")
