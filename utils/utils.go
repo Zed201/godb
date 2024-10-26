@@ -12,9 +12,10 @@ import (
 )
 
 var (
-	NotRec   string = "Comando não reconhecido '%s'\n"
-	ArqErro  string = "Erro ao usar o arquivo '%v'\n"
-	MissingS string = "No lugar de '%s', achou '%s'\n\n"
+	NotRec      string = "Comando não reconhecido '%s'\n"
+	ArqErro     string = "Erro ao usar o arquivo '%v'\n"
+	MissingS    string = "No lugar de '%s', achou '%s'\n\n"
+	DbNotSelect string = "Banco de dados n├úo selecionado\n"
 )
 
 // Comandos do autocomplete
@@ -134,13 +135,17 @@ func ByteToInt(s []byte) (interface{}, error) {
 }
 
 func IntToByte(s interface{}) ([]byte, error) {
-	i, ok := s.(int32)
-
+	str, ok := s.(string)
 	if !ok {
-		return nil, errors.New("Esperado Numero")
+		return nil, errors.New("Erro de conversão\n")
 	}
+	i32, e := strconv.Atoi(str)
+	if e != nil {
+		return nil, errors.New("Erro na conversão\n")
+	}
+
 	buf := make([]byte, 4)
-	binary.BigEndian.PutUint32(buf, uint32(i))
+	binary.BigEndian.PutUint32(buf, uint32(i32))
 	return buf, nil
 }
 
@@ -170,13 +175,13 @@ func ByteToBool(s []byte) (interface{}, error) {
 }
 
 func BoolToByte(s interface{}) ([]byte, error) {
-	b, ok := s.(bool)
+	b, ok := s.(int)
 	if !ok {
-		return nil, errors.New("Esperado bool")
+		return nil, errors.New("Esperado int")
 	}
 
 	// 0xFF é true e 0x00 é false
-	if b {
+	if b == 1 {
 		return []byte{0xFF}, nil
 	}
 	return []byte{0x00}, nil
@@ -190,6 +195,7 @@ func BoolToByte(s interface{}) ([]byte, error) {
 // )
 
 type (
+	// TODO: Talvez concertar pois no final tudo vem de string
 	byteDecoderT func([]byte) (interface{}, error)
 	byteEncoderT func(interface{}) ([]byte, error)
 )

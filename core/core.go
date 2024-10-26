@@ -43,11 +43,12 @@ func ExecuteStatement(s utils.StatementType, T *processor.Tokenizer) utils.Statu
 
 type Dabatase struct {
 	Nome    string
-	Tabelas []Table
+	Tabelas map[string]Table
 }
 
 type Table struct {
-	Nome     string
+	Nome string
+	// Idx      map[string]int
 	ColsName []string
 	ColsType []processor.ColsType
 	SizeT    int
@@ -56,12 +57,13 @@ type Table struct {
 	// Basicamente como o [:] do slice é inclusivo:exclusivo
 	// então um dado ele vai do [Offset de x: offset x + 1], sendo que o ultimo vaii até o size final
 	// Parte das colunas em si, vai ser algo de bytes
+	Dados []byte // não esta mudando
 }
 
 func NewDB(nome string) Dabatase {
 	return Dabatase{
 		Nome:    nome,
-		Tabelas: make([]Table, 0),
+		Tabelas: make(map[string]Table),
 	}
 }
 
@@ -72,6 +74,8 @@ func NewTb(nome string) Table {
 		ColsType: make([]processor.ColsType, 0),
 		OffSet:   make([]int, 0),
 		Sizes:    make([]int, 0),
+		Dados:    make([]byte, 0),
+		// Idx:      make(map[string]int),
 	}
 }
 
@@ -81,8 +85,52 @@ func NewTb(nome string) Table {
 // 	// Basicamente vai colocar tudo como string depois no core converte
 // }
 
-func InsertExec(S processor.InsertStruct) {
-	OutPut("'%v'\n", S)
+func InsertExec(Sparser processor.InsertStruct) {
+	OutPut("'%v'\n", Sparser)
+	if DBUSING == nil {
+		OutPut(utils.DbNotSelect)
+		return
+	}
+	tb, exi := DBUSING.Tabelas[Sparser.TableName]
+	if !exi {
+		OutPut("Tabela não existe nesse banco de dados\n")
+		return
+	}
+
+	var buf bytes.Buffer
+	// buf.Grow(tb.SizeT)
+	for idx, name := range tb.ColsName {
+		data, e := Sparser.Fields[name]
+		if !e {
+			OutPut("Erro na inserção, coluna especificada não existe\n")
+			return
+		}
+		dataBytes, err := utils.Encoders[tb.ColsType[idx]](data)
+		OutPut("Dado de %s em bytes %v\n", name, dataBytes)
+		if err != nil {
+			OutPut("Erro na conversão '%v'\n", dataBytes)
+			return
+		}
+		if len(dataBytes) > tb.Sizes[idx] {
+			OutPut("Coluna '%s', tem dado maior do que o permitido\n", Sparser.Fields[name])
+			return
+		} else if len(dataBytes) < tb.Sizes[idx] { // completa com certos dados(talvez de problemas para strin)
+			// completar com rune(' '), 0x20
+			toApp := make([]byte, tb.Sizes[idx]-len(dataBytes))
+			for i := range toApp {
+				toApp[i] = 0x20
+			}
+			dataBytes = append(dataBytes, toApp...)
+		}
+		n, er := buf.Write(dataBytes)
+		if er != nil || n != tb.Sizes[idx] {
+			OutPut("Erro na escrita de bytes\n")
+			return
+		}
+	}
+	// b := buf.Bytes()
+	tb.Dados = append(tb.Dados, buf.Bytes()...)
+	DBUSING.Tabelas[tb.Nome] = tb // tem que dar reasgning
 }
 
 //	type CmpSet struct {
@@ -99,7 +147,9 @@ func InsertExec(S processor.InsertStruct) {
 //		// pois la ele vai saber os tipos
 //	}
 func SelectExec(S processor.SelectStruct) {
-	OutPut("'%v'\n", S)
+	// OutPut("'%v'\n", S)
+	OutPut("%v\n", DBUSING.Tabelas[S.TableName].Dados)
+	// DBUSING.Tabelas[S.TableName].Dados = append(DBUSING.Tabelas[S.TableName].Dados, byte(0x11))
 }
 
 // type ColsType uint8
@@ -142,16 +192,20 @@ func CreateExec(Sparser processor.CreateStruct) {
 		}
 		i := 0 // offset counter
 		t := NewTb(Sparser.Name)
+		// DBUSING.TabelasNome = append(DBUSING.TabelasNome, Sparser.Name)
 		for name, ty := range Sparser.Cols {
 			t.ColsName = append(t.ColsName, name)
 			t.ColsType = append(t.ColsType, ty.Type)
 			t.Sizes = append(t.Sizes, ty.Size)
 			t.OffSet = append(t.OffSet, i)
 			i = i + ty.Size
+			// t.Idx[name] = idx
+			// idx = idx + 1
 		}
 		t.SizeT = i
 		// OutPut("'%v'\n", t)
-		DBUSING.Tabelas = append(DBUSING.Tabelas, t)
+		// DBUSING.Tabelas = append(DBUSING.Tabelas, t)
+		DBUSING.Tabelas[Sparser.Name] = t
 		if e := DBUSING.SaveBinary(); e != nil {
 			return
 		}

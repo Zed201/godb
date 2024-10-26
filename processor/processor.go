@@ -441,7 +441,7 @@ const (
 )
 
 //go:generate stringer -type=ColsType
-type ColsType uint8
+type ColsType int8
 
 // os basicos só para ter um exemplo
 const (
