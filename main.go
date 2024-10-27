@@ -18,6 +18,8 @@ func main() {
 		sigs <- syscall.SIGINT
 	}()
 	<-sigs
-	_ = core.DBUSING.SaveBinary()
+	if core.DBUSING != nil {
+		_ = core.DBUSING.SaveBinary()
+	}
 	fmt.Println("\nSaindo")
 }

@@ -3,6 +3,7 @@ package core
 import (
 	"bytes"
 	"encoding/gob"
+	"errors"
 	"os"
 
 	"godb/processor"
@@ -47,8 +48,8 @@ type Dabatase struct {
 }
 
 type Table struct {
-	Nome string
-	// Idx      map[string]int
+	Nome     string
+	Qtd      int
 	ColsName []string
 	ColsType []processor.ColsType
 	SizeT    int
@@ -75,7 +76,7 @@ func NewTb(nome string) Table {
 		OffSet:   make([]int, 0),
 		Sizes:    make([]int, 0),
 		Dados:    make([]byte, 0),
-		// Idx:      make(map[string]int),
+		Qtd:      0,
 	}
 }
 
@@ -130,6 +131,7 @@ func InsertExec(Sparser processor.InsertStruct) {
 	}
 	// b := buf.Bytes()
 	tb.Dados = append(tb.Dados, buf.Bytes()...)
+	tb.Qtd = tb.Qtd + 1
 	DBUSING.Tabelas[tb.Nome] = tb // tem que dar reasgning
 }
 
@@ -148,7 +150,15 @@ func InsertExec(Sparser processor.InsertStruct) {
 //	}
 func SelectExec(S processor.SelectStruct) {
 	// OutPut("'%v'\n", S)
-	OutPut("%v\n", DBUSING.Tabelas[S.TableName].Dados)
+	// OutPut("%v\n", DBUSING.Tabelas[S.TableName].Dados)
+	tb, ex := DBUSING.Tabelas[S.TableName]
+	if !ex {
+		OutPut("Tabela indicada não existe\n")
+		return
+	}
+	// OutPut("-%v-\n", tb.Dados)
+	tb.PrintData()
+	// tb.IterateData()
 	// DBUSING.Tabelas[S.TableName].Dados = append(DBUSING.Tabelas[S.TableName].Dados, byte(0x11))
 }
 
@@ -252,4 +262,52 @@ func ReadBinaryDB(s string) (E error) {
 	return nil
 }
 
-// Funções de conversão
+func (D *Dabatase) PrintDB() {
+	OutPut("Nome: %s\n", D.Nome)
+	for i := range D.Tabelas {
+		OutPut("'%s'\n", i)
+	}
+}
+
+type IterateOverData func([]byte) interface{}
+
+// basicamente vai colocar o f para executar com o slice de uma row
+func (T *Table) IterateData(f IterateOverData) {
+	for i := 0; i < T.Qtd; i++ {
+		s := T.Dados[i*T.SizeT : ((i + 1) * T.SizeT)]
+		f(s)
+
+	}
+}
+
+func (T *Table) PrintData() {
+	f := func(b []byte) interface{} {
+		OutPut("----------\n")
+		for idx, field := range T.ColsName {
+			d, e := T.GetDataStr(idx, b)
+			if e != nil {
+				return nil
+			}
+			OutPut("'%s':'%s'\n", field, d)
+		}
+		OutPut("----------\n")
+		return nil
+	}
+	T.IterateData(f)
+	// OutPut("offset %v, sizes %v\n", T.OffSet, T.Sizes)
+}
+
+func (T *Table) GetDataStr(idx int, data []byte) (string, error) {
+	if len(data) != T.SizeT {
+		return "", nil
+	}
+	b := data[T.OffSet[idx] : T.OffSet[idx]+T.Sizes[idx]]
+	// OutPut("'%d-%v'\n", idx, b)
+	a, e := utils.Decoders[T.ColsType[idx]](b)
+	// OutPut("idx=%d\n", idx)
+	if e != nil {
+		return "", errors.New("Erro na conversão")
+	}
+	// OutPut("%v->%T\n", b, a)
+	return a, nil
+}

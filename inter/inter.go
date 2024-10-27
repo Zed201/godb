@@ -98,7 +98,7 @@ func ProcessDotComand(input string) utils.Status {
 			OutPut("Nenhum banco de dados selecionado\n")
 			return utils.ERROR
 		}
-		OutPut("'%v'\n", core.DBUSING)
+		core.DBUSING.PrintDB()
 	default:
 		OutPut(utils.NotRec, input)
 	}

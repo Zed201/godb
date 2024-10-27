@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"math"
 	"os"
 	"strconv"
 	"strings"
@@ -113,78 +114,79 @@ func ReadFile(name string) (*bufio.Scanner, func() error, error) {
 // funções de handler com bytes(basicamente copiados do gpt)
 
 // String
-func ByteToString(s []byte) (interface{}, error) {
+func ByteToString(s []byte) (string, error) {
 	return string(s), nil
 }
 
-func StringToByte(s interface{}) ([]byte, error) {
-	str, ok := s.(string)
-	if !ok {
-		return nil, errors.New("Esperada String")
-	}
-	return []byte(str), nil
+func StringToByte(s string) ([]byte, error) {
+	return []byte(s), nil
 }
 
 // Int
-func ByteToInt(s []byte) (interface{}, error) {
-	l := len(s)
-	if l != 4 {
-		return nil, errors.New("Quantidade de bytes errada")
+func ByteToInt(s []byte) (string, error) {
+	if len(s) != 4 {
+		return "", errors.New("Quantidade de bytes errada")
 	}
-	return int32(binary.BigEndian.Uint32(s)), nil
+	a := int32(binary.BigEndian.Uint32(s))
+	return fmt.Sprintf("%d", a), nil
 }
 
-func IntToByte(s interface{}) ([]byte, error) {
-	str, ok := s.(string)
-	if !ok {
-		return nil, errors.New("Erro de conversão\n")
+// é para ser int32
+func IntToByte(s string) ([]byte, error) {
+	i, err := strconv.ParseInt(s, 10, 32)
+	if err != nil {
+		return nil, err
 	}
-	i32, e := strconv.Atoi(str)
-	if e != nil {
-		return nil, errors.New("Erro na conversão\n")
-	}
-
-	buf := make([]byte, 4)
-	binary.BigEndian.PutUint32(buf, uint32(i32))
-	return buf, nil
+	i32V := int32(i)
+	b := make([]byte, 4)
+	binary.BigEndian.PutUint32(b, uint32(i32V))
+	return b, nil
 }
 
 // Float
-func ByteToFloat(s []byte) (interface{}, error) {
-	f, e := strconv.ParseFloat(string(s), 64)
+func ByteToFloat(s []byte) (string, error) {
+	if len(s) != 4 {
+		return "", errors.New("Bytes em tamanho errado")
+	}
+	bts := binary.BigEndian.Uint32(s)
+	floatValue := math.Float32frombits(bts)
+	return fmt.Sprintf("%f", floatValue), nil
+}
+
+func FloatToByte(s string) ([]byte, error) {
+	fV, e := strconv.ParseFloat(s, 32)
 	if e != nil {
 		return nil, e
 	}
-	return f, nil
+	bts := math.Float32bits(float32(fV))
+	by := make([]byte, 4)
+	binary.BigEndian.AppendUint32(by, bts)
+	return by, nil
 }
 
-func FloatToByte(s interface{}) ([]byte, error) {
-	f, ok := s.(float32)
-	if !ok {
-		return nil, errors.New("Esperado um float32")
-	}
-	return []byte(fmt.Sprintf("%f", f)), nil
-}
+var (
+	true_  = []byte{0xFF}
+	false_ = []byte{0x00}
+)
 
 // Bool
-func ByteToBool(s []byte) (interface{}, error) {
+func ByteToBool(s []byte) (string, error) {
 	if len(s) != 1 {
-		return nil, errors.New("Numero de bytes diferente")
+		return "", errors.New("Numero de bytes diferente")
 	}
-	return s[0] == 0xFF, nil
+
+	if Compare(s, true_) {
+		return "true", nil
+	}
+	return "false", nil
 }
 
-func BoolToByte(s interface{}) ([]byte, error) {
-	b, ok := s.(int)
-	if !ok {
-		return nil, errors.New("Esperado int")
-	}
-
+func BoolToByte(s string) ([]byte, error) {
 	// 0xFF é true e 0x00 é false
-	if b == 1 {
-		return []byte{0xFF}, nil
+	if CpmNCase(s, "true") {
+		return true_, nil
 	}
-	return []byte{0x00}, nil
+	return false_, nil
 }
 
 // const (
@@ -196,8 +198,8 @@ func BoolToByte(s interface{}) ([]byte, error) {
 
 type (
 	// TODO: Talvez concertar pois no final tudo vem de string
-	byteDecoderT func([]byte) (interface{}, error)
-	byteEncoderT func(interface{}) ([]byte, error)
+	byteDecoderT func([]byte) (string, error)
+	byteEncoderT func(string) ([]byte, error)
 )
 
 var (
@@ -209,3 +211,21 @@ var (
 		ByteToString, ByteToInt, ByteToFloat, ByteToBool,
 	}
 )
+
+func Compare[T comparable](s, t []T) bool {
+	for i, v := range s {
+		if t[i] != v {
+			return false
+		}
+	}
+	return true
+}
+
+func Contains[T comparable](s []T, t T) bool {
+	for _, v := range s {
+		if v == t {
+			return true
+		}
+	}
+	return false
+}
