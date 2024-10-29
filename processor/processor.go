@@ -11,14 +11,8 @@ import (
 
 var Output = utils.OutPut
 
-var debug bool = false
-
 func ParserStatement(s string) (utils.StatementType, utils.Status, *Tokenizer) {
 	t := NewTokenizer(s)
-	if debug {
-		t.PrintAllToken()
-		return utils.NONE, utils.UNRECOGNIZED, nil
-	}
 	T, _ := t.NextToken() // primeiro para detectar o comando
 	switch T {
 	case SELECT:
@@ -99,14 +93,36 @@ type SelectStatement struct {
 	// where, comparar valores com x, criar mapa dos filds e dos valores a serem comparados
 }
 
+type TokenLit struct {
+	T Token
+	L string
+}
+
 type Tokenizer struct {
 	buf *bufio.Reader
 	end bool
+	Idx int
+	Vec []TokenLit
 }
 
 func NewTokenizer(s string) *Tokenizer {
 	s = strings.TrimSpace(s)
-	return &Tokenizer{buf: bufio.NewReader(strings.NewReader(s)), end: false}
+	t := &Tokenizer{
+		buf: bufio.NewReader(strings.NewReader(s)),
+		end: false,
+		Idx: 0,
+		Vec: make([]TokenLit, 0),
+	}
+	t.Vec = t.TokenLitSlice()
+	return t
+}
+
+func (T *Tokenizer) TokenLitSlice() (r []TokenLit) {
+	for !T.end {
+		t, l := T.nextread()
+		r = append(r, TokenLit{T: t, L: l})
+	}
+	return r
 }
 
 func (T *Tokenizer) read() rune {
@@ -129,8 +145,19 @@ func isEspecial(r rune) bool {
 	return r == ',' || r == '*' || r == '(' || r == ')' || r == '=' || r == '>' || r == '<'
 }
 
-// TODO: Talvez fazer logo tudo, aí depois ir consumindo de um array
-func (T *Tokenizer) NextToken() (t Token, lit string) {
+var TokenListS = []string{
+	"SELECT", "INSERT", "FROM", "WHERE", "INTO", "VARCHAR",
+	"FLOAT", "INT", "BOOL", "DATABASE", "TABLE", "CREATE",
+	"VALUES",
+}
+
+var TokenListE = []Token{
+	SELECT, INSERT, FROM, WHERE, INTO, ParserVARCHAR,
+	ParserFLOAT, ParserINT, ParserBOOL, ParserDATABASE, ParserTABLE, CREATE,
+	VALUES,
+}
+
+func (T *Tokenizer) nextread() (t Token, lit string) {
 	var buf bytes.Buffer
 
 	r := T.read()
@@ -158,7 +185,7 @@ func (T *Tokenizer) NextToken() (t Token, lit string) {
 		if isLetter(r) || isDigit(r) {
 			buf.WriteRune(r)
 		} else if isEspecial(r) {
-			// não vai ter nomes com , ( ) ou * no caso ele vai enteder como tokens diferentes
+			// n├úo vai ter nomes com , ( ) ou * no caso ele vai enteder como tokens diferentes
 			T.unread()
 			break
 		} else if r == eof || r == ' ' {
@@ -168,39 +195,26 @@ func (T *Tokenizer) NextToken() (t Token, lit string) {
 	}
 
 	lit = buf.String()
-	// TODO: Melhorar
-	if Cpm(lit, "SELECT") {
-		t = SELECT
-	} else if Cpm(lit, "INSERT") {
-		t = INSERT
-	} else if Cpm(lit, "FROM") {
-		t = FROM
-	} else if Cpm(lit, "WHERE") {
-		t = WHERE
-	} else if Cpm(lit, "VALUES") {
-		t = VALUES
-	} else if Cpm(lit, "INTO") {
-		t = INTO
-	} else if Cpm(lit, "VARCHAR") {
-		t = ParserVARCHAR
-	} else if Cpm(lit, "FLOAT") {
-		t = ParserFLOAT
-	} else if Cpm(lit, "INT") {
-		t = ParserINT
-	} else if Cpm(lit, "BOOL") {
-		t = ParserBOOL
-	} else if Cpm(lit, "DATABASE") {
-		t = ParserDATABASE
-	} else if Cpm(lit, "TABLE") {
-		t = ParserTABLE
-	} else if Cpm(lit, "CREATE") {
-		t = CREATE
-	} else {
-		t = IDENTIFIER
-	}
 	if len(lit) == 0 {
 		return EOF, ""
 	}
+	t = IDENTIFIER
+	for idx, Tl := range TokenListS {
+		if Cpm(lit, Tl) {
+			t = TokenListE[idx]
+			return
+		}
+	}
+	return
+}
+
+func (T *Tokenizer) NextToken() (t Token, lit string) {
+	if T.Idx == len(T.Vec) {
+		return EOF, ""
+	}
+	tl := T.Vec[T.Idx]
+	T.Idx++
+	t, lit = tl.T, tl.L
 	return
 }
 
@@ -244,27 +258,6 @@ func (T *Tokenizer) ReadCmp() (t Token, l string) {
 	return EOF, ""
 }
 
-func (T *Tokenizer) PrintAllToken() {
-	r := T.TokenLitSlice()
-	for _, t := range r {
-		Output("'%v'\n", t)
-	}
-}
-
-type TokenLit struct {
-	T Token
-	L string
-}
-
-func (T *Tokenizer) TokenLitSlice() (r []TokenLit) {
-	for !T.end {
-		t, l := T.NextToken()
-		r = append(r, TokenLit{T: t, L: l})
-	}
-	return r
-}
-
-// TODO:
 type InsertStruct struct {
 	TableName string
 	Fields    map[string]string
@@ -372,7 +365,6 @@ type SelectStruct struct {
 
 // select * from db where c=1, c[!]2(não é como no sql padrão)
 // ! -> =, >, <, >=, <=, <>
-// TODO: Implementar erros de sintaxe melhores
 func SelectParse(T *Tokenizer) *SelectStruct {
 	var S SelectStruct
 	t, l := T.NextToken()
@@ -408,7 +400,7 @@ func SelectParse(T *Tokenizer) *SelectStruct {
 				field := l
 				comp, _ := T.NextToken()
 				tok, value := T.NextToken()
-				if tok != IDENTIFIER { // TODO: erro
+				if tok != IDENTIFIER {
 					Output(utils.MissingS, "Valor", value)
 					return nil
 				}
@@ -417,15 +409,15 @@ func SelectParse(T *Tokenizer) *SelectStruct {
 
 				S.WhereClauses[field] = C
 				// }
-				c, l := T.NextToken()
+				c, li := T.NextToken()
 				if c != COMMA && c != EOF {
-					// TODO: Erro
-					Output(utils.MissingS, ",", l)
+					Output(utils.MissingS, ",", li)
 					return nil
 				}
 			}
 		} else {
-			// TODO: Algum erro
+			Output(utils.MissingS, WHERE, l)
+			return nil
 		}
 
 	}
@@ -475,6 +467,10 @@ func ParserToType(c Token) ColsType {
 		return BOOL
 	}
 	return INT
+}
+
+func isSqlType(t Token) bool {
+	return t == ParserINT || t == ParserBOOL || t == ParserFLOAT || t == ParserVARCHAR
 }
 
 // TODO: Testar
@@ -531,8 +527,8 @@ func CreateParser(T *Tokenizer) *CreateStruct {
 
 		var CS ColTStruct
 		CS.Size = 4
-
-		if ColTyp == ParserVARCHAR { // calcular o tamanho colocado dps
+		switch ColTyp {
+		case ParserVARCHAR: // calcular o tamanho colocado dps
 			t, l = T.NextToken()
 			if t != PARENTOPEN {
 				Output(utils.MissingS, "(", l)
@@ -556,8 +552,9 @@ func CreateParser(T *Tokenizer) *CreateStruct {
 				Output(utils.MissingS, ")", l)
 			}
 
-		} else if ColTyp == ParserBOOL {
+		case ParserBOOL:
 			CS.Size = 1
+
 		}
 
 		CS.Type = ParserToType(ColTyp)
@@ -565,8 +562,4 @@ func CreateParser(T *Tokenizer) *CreateStruct {
 
 	}
 	return &C
-}
-
-func isSqlType(t Token) bool {
-	return t == ParserINT || t == ParserBOOL || t == ParserFLOAT || t == ParserVARCHAR
 }
