@@ -57,6 +57,7 @@ const (
 	SELECT
 	UPDATE
 	CREATE
+	DELETE
 	NONE
 )
 
@@ -233,6 +234,9 @@ var (
 )
 
 func Compare[T comparable](s, t []T) bool {
+	if len(s) != len(t) {
+		return false
+	}
 	for i, v := range s {
 		if t[i] != v {
 			return false
@@ -272,4 +276,11 @@ func CompleterAux(line string) (c []string) {
 		}
 	}
 	return
+}
+
+func DeleteIndex[T comparable](slice []T, i, f int) []T {
+	if i < 0 || i >= len(slice) {
+		return slice
+	}
+	return append(slice[:i], slice[f+1:]...)
 }

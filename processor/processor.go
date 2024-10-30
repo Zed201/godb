@@ -21,6 +21,8 @@ func ParserStatement(s string) (utils.StatementType, utils.Status, *Tokenizer) {
 		return utils.INSERT, utils.SUCCESS, t
 	case CREATE:
 		return utils.CREATE, utils.SUCCESS, t
+	case DELETE:
+		return utils.DELETE, utils.SUCCESS, t
 	default:
 		return utils.NONE, utils.UNRECOGNIZED, nil
 
@@ -55,6 +57,7 @@ const (
 	VALUES // 12
 	INTO
 	CREATE
+	DELETE
 
 	// CmpSym
 	EQUAL
@@ -148,13 +151,13 @@ func isEspecial(r rune) bool {
 var TokenListS = []string{
 	"SELECT", "INSERT", "FROM", "WHERE", "INTO", "VARCHAR",
 	"FLOAT", "INT", "BOOL", "DATABASE", "TABLE", "CREATE",
-	"VALUES",
+	"VALUES", "DELETE",
 }
 
 var TokenListE = []Token{
 	SELECT, INSERT, FROM, WHERE, INTO, ParserVARCHAR,
 	ParserFLOAT, ParserINT, ParserBOOL, ParserDATABASE, ParserTABLE, CREATE,
-	VALUES,
+	VALUES, DELETE,
 }
 
 func (T *Tokenizer) nextread() (t Token, lit string) {
@@ -390,13 +393,8 @@ func SelectParse(T *Tokenizer) *SelectStruct {
 		return nil
 	}
 
-	// if len(T.Vec)-1 >= T.Idx { // tem clausulas de WhereClauses
+	// tem clausulas de WhereClauses
 	t, l = T.NextToken()
-	//
-	// for _, c := range T.Vec {
-	// 	Output("'%v'\n", c)
-	// }
-	// return nil
 
 	if t != EOF {
 		// t, l = T.NextToken()
@@ -583,4 +581,70 @@ func CreateParser(T *Tokenizer) *CreateStruct {
 
 	}
 	return &C
+}
+
+type DeleteStruct struct {
+	TableName    string
+	WhereClauses map[string]CmpSet
+}
+
+func DeleteParser(T *Tokenizer) *DeleteStruct {
+	var S DeleteStruct
+	S.WhereClauses = make(map[string]CmpSet)
+	t, l := T.NextToken()
+	if t != FROM {
+		Output(utils.MissingS, FROM, l)
+		return nil
+	}
+	t, l = T.NextToken()
+	if t == IDENTIFIER && len(l) > 0 {
+		S.TableName = l
+	} else {
+		Output(utils.MissingS, "TableName", l)
+		return nil
+	}
+	// tem clausulas de WhereClauses
+	t, l = T.NextToken()
+
+	if t != EOF {
+		// t, l = T.NextToken()
+		if t != WHERE {
+			Output(utils.MissingS, WHERE, l)
+			return nil
+		}
+
+		for {
+			t, field := T.NextToken()
+			if t == EOF {
+				break
+			}
+
+			if t != IDENTIFIER {
+				Output(utils.MissingS, "Coluna", field)
+				return nil
+			}
+
+			comp, l := T.NextToken()
+			if !isCompSql(comp) {
+				Output(utils.MissingS, "Comparacao", l)
+				return nil
+			}
+
+			t, val := T.NextToken()
+			if t != IDENTIFIER {
+				Output(utils.MissingS, "Valor", val)
+				return nil
+			}
+
+			C := CmpSet{Sig: comp, Clause: val}
+			S.WhereClauses[field] = C
+
+			coma, l := T.NextToken()
+			if coma != COMMA && coma != EOF {
+				Output(utils.MissingS, COMMA, l)
+				return nil
+			}
+		}
+	}
+	return &S
 }

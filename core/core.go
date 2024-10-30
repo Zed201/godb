@@ -37,6 +37,12 @@ func ExecuteStatement(s utils.StatementType, T *processor.Tokenizer) utils.Statu
 			return utils.ERROR
 		}
 		CreateExec(*s)
+	case utils.DELETE:
+		s := processor.DeleteParser(T)
+		if s == nil {
+			return utils.ERROR
+		}
+		DeleteExec(*s)
 	}
 	return utils.UNRECOGNIZED
 }
@@ -188,6 +194,54 @@ func SelectExec(S processor.SelectStruct) {
 		}
 		tb.GetColumsIf(S.Fields, S.WhereClauses)
 	}
+}
+
+// type DeleteStruct struct {
+// 	TableName    string
+// 	WhereClauses map[string]CmpSet
+// }
+
+func DeleteExec(S processor.DeleteStruct) {
+	if DBUSING == nil {
+		OutPut("Database nao selecionada\n")
+		return
+	}
+	tb, ex := DBUSING.Tabelas[S.TableName]
+	if !ex {
+		OutPut("Tabela indicada nao existe\n")
+		return
+	}
+	deleteIdx := make([]int, 0)
+	I := 0
+	f := func(b []byte) interface{} {
+		for s, i := range S.WhereClauses {
+			idC := tb.Idx[s]
+			d, e := tb.GetDataStr(idC, b)
+			if e != nil {
+				return nil
+			}
+			if CompSet(d, i, tb.ColsType[idC]) {
+				deleteIdx = append(deleteIdx, I)
+			}
+		}
+		I++
+		return nil
+	}
+	tb.IterateData(f)
+	OutPut("Deletar os indices '%v'\n", deleteIdx)
+	// função nenhum pouco eficiente mas funciona
+	// ta dando algum erro
+	OutPut("'%v'\n", tb.Dados)
+	for _, i := range deleteIdx {
+		// s := T.Dados[i*T.SizeT : ((i + 1) * T.SizeT)]
+		OutPut("Deetando %d, [%d:%d]\n", i, i*tb.SizeT, (i+1)*tb.SizeT)
+		// tb.Dados = append(tb.Dados, utils.DeleteIndex(tb.Dados, i)...)
+		tb.Dados = utils.DeleteIndex(tb.Dados, i*tb.SizeT, ((i+1)*tb.SizeT)+1)
+		// tb.Qtd--
+	}
+	tb.Qtd = tb.Qtd - len(deleteIdx)
+	OutPut("'%v'\n", tb.Dados)
+	DBUSING.Tabelas[tb.Nome] = tb
 }
 
 type CompareTypeAux interface {

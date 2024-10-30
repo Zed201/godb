@@ -19,7 +19,7 @@ const _ColsType_name = "VARCHARINTFLOATBOOL"
 var _ColsType_index = [...]uint8{0, 7, 10, 15, 19}
 
 func (i ColsType) String() string {
-	if i >= ColsType(len(_ColsType_index)-1) {
+	if i < 0 || i >= ColsType(len(_ColsType_index)-1) {
 		return "ColsType(" + strconv.FormatInt(int64(i), 10) + ")"
 	}
 	return _ColsType_name[_ColsType_index[i]:_ColsType_index[i+1]]
