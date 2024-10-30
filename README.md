@@ -16,12 +16,13 @@ As partes do projeto são:
 
 <details>
 <summary>Processor(Tokenizer e Parser)</summary>
-        Está no Inter também, basicamente 
-        vai interpretar os comandos e passar para o core
+        Tem basicamente as funções de Parser para as instruções e Tokenizer,
+        que são passadas para o core, atráves do Interface
 </details>
 
 <details>
 <summary>Core</summary>
-        Implementação das execuções dos comandos, além das outras estruturas 
-        para armazenar dados e outros
+        Implementação das execuções dos comandos, além das outras estrutura para
+        auxiliar, no momento está armazenando tudo em um slice de []byte
+        Em breve vou trocar para alguma estrutura de dados mais complexa
 </details>
