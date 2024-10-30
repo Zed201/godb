@@ -85,7 +85,7 @@ func isLetter(ch rune) bool {
 	return (ch >= 'a' && ch <= 'z') || (ch >= 'A' && ch <= 'Z') || ch == '_' // considerar pois em geral tem nos nomes
 }
 
-func isDigit(ch rune) bool { return (ch >= '0' && ch <= '9') }
+func isDigit(ch rune) bool { return (ch >= '0' && ch <= '9') || ch == '.' } // para pontos flutuantes
 
 type SelectStatement struct {
 	Fields    []string // se len == 0 é todos, se não é so os escolhidos
@@ -356,7 +356,7 @@ type CmpSet struct {
 
 type SelectStruct struct {
 	TableName    string
-	fields       []string
+	Fields       []string
 	WhereClauses map[string]CmpSet
 	// os where basicamente vai mapear os valores que poderiam ser
 	// Por enquanto lidando apenas com valores unicos e a conversão vem na parte do core,
@@ -367,15 +367,16 @@ type SelectStruct struct {
 // ! -> =, >, <, >=, <=, <>
 func SelectParse(T *Tokenizer) *SelectStruct {
 	var S SelectStruct
+	S.WhereClauses = make(map[string]CmpSet)
 	t, l := T.NextToken()
 	if t == ASTERISK {
-		S.fields = append(S.fields, l)
+		S.Fields = append(S.Fields, l)
 		t, l = T.NextToken()
 	} else { // colunas foram selecionandas
 		// select c1,c2,c3
 		for t != FROM { // usando from como stop pois mas pode gerar espaços para erros
 			if t != COMMA {
-				S.fields = append(S.fields, l)
+				S.Fields = append(S.Fields, l)
 			}
 			t, l = T.NextToken()
 		}
@@ -388,38 +389,54 @@ func SelectParse(T *Tokenizer) *SelectStruct {
 		Output(utils.MissingS, "TableName", l)
 		return nil
 	}
-	S.WhereClauses = make(map[string]CmpSet)
 
-	if !T.end { // tem clausulas de WhereClauses
-		t, l = T.NextToken()
+	// if len(T.Vec)-1 >= T.Idx { // tem clausulas de WhereClauses
+	t, l = T.NextToken()
+	//
+	// for _, c := range T.Vec {
+	// 	Output("'%v'\n", c)
+	// }
+	// return nil
 
-		if t == WHERE {
-			for !T.end {
-				// if t != COMMA { // <fields><comp><value>,
-				t, l = T.NextToken()
-				field := l
-				comp, _ := T.NextToken()
-				tok, value := T.NextToken()
-				if tok != IDENTIFIER {
-					Output(utils.MissingS, "Valor", value)
-					return nil
-				}
-
-				C := CmpSet{Sig: comp, Clause: value}
-
-				S.WhereClauses[field] = C
-				// }
-				c, li := T.NextToken()
-				if c != COMMA && c != EOF {
-					Output(utils.MissingS, ",", li)
-					return nil
-				}
-			}
-		} else {
+	if t != EOF {
+		// t, l = T.NextToken()
+		if t != WHERE {
 			Output(utils.MissingS, WHERE, l)
 			return nil
 		}
 
+		for {
+			t, field := T.NextToken()
+			if t == EOF {
+				break
+			}
+
+			if t != IDENTIFIER {
+				Output(utils.MissingS, "Coluna", field)
+				return nil
+			}
+
+			comp, l := T.NextToken()
+			if !isCompSql(comp) {
+				Output(utils.MissingS, "Comparação", l)
+				return nil
+			}
+
+			t, val := T.NextToken()
+			if t != IDENTIFIER {
+				Output(utils.MissingS, "Valor", val)
+				return nil
+			}
+
+			C := CmpSet{Sig: comp, Clause: val}
+			S.WhereClauses[field] = C
+
+			coma, l := T.NextToken()
+			if coma != COMMA && coma != EOF {
+				Output(utils.MissingS, COMMA, l)
+				return nil
+			}
+		}
 	}
 	return &S
 }
@@ -471,6 +488,10 @@ func ParserToType(c Token) ColsType {
 
 func isSqlType(t Token) bool {
 	return t == ParserINT || t == ParserBOOL || t == ParserFLOAT || t == ParserVARCHAR
+}
+
+func isCompSql(t Token) bool {
+	return t == EQUAL || t == NOTEQUAL || t == GREATEREQUAL || t == GREATER || t == LESS || t == LESSEQUAL
 }
 
 // TODO: Testar
@@ -546,7 +567,7 @@ func CreateParser(T *Tokenizer) *CreateStruct {
 				return nil
 			}
 
-			CS.Size = 4 * i
+			CS.Size = i
 			t, l = T.NextToken()
 			if t != PARENTCLOSE {
 				Output(utils.MissingS, ")", l)

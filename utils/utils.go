@@ -2,6 +2,7 @@ package utils
 
 import (
 	"bufio"
+	"bytes"
 	"encoding/binary"
 	"errors"
 	"fmt"
@@ -131,7 +132,6 @@ func ByteToInt(s []byte) (string, error) {
 	return fmt.Sprintf("%d", a), nil
 }
 
-// é para ser int32
 func IntToByte(s string) ([]byte, error) {
 	i, err := strconv.ParseInt(s, 10, 32)
 	if err != nil {
@@ -141,6 +141,14 @@ func IntToByte(s string) ([]byte, error) {
 	b := make([]byte, 4)
 	binary.BigEndian.PutUint32(b, uint32(i32V))
 	return b, nil
+}
+
+func StringToIntT(b string) (int32, error) {
+	i, e := strconv.ParseInt(b, 10, 32)
+	if e != nil {
+		return 0, e
+	}
+	return int32(i), nil
 }
 
 // Float
@@ -158,10 +166,22 @@ func FloatToByte(s string) ([]byte, error) {
 	if e != nil {
 		return nil, e
 	}
-	bts := math.Float32bits(float32(fV))
-	by := make([]byte, 4)
-	binary.BigEndian.AppendUint32(by, bts)
-	return by, nil
+	// bts := math.Float32bits(float32(fV))
+	by := new(bytes.Buffer)
+	// binary.BigEndian.AppendUint32(by, bts)
+	e = binary.Write(by, binary.BigEndian, float32(fV))
+	if e != nil {
+		return nil, e
+	}
+	return by.Bytes(), nil
+}
+
+func StringToFloatT(b string) (float32, error) {
+	fV, e := strconv.ParseFloat(b, 32)
+	if e != nil {
+		return 0.0, e
+	}
+	return float32(fV), nil
 }
 
 var (

@@ -5,6 +5,7 @@ import (
 	"encoding/gob"
 	"errors"
 	"os"
+	"strings"
 
 	"godb/processor"
 	"godb/utils"
@@ -50,6 +51,7 @@ type Table struct {
 	Qtd      int
 	ColsName []string
 	ColsType []processor.ColsType
+	Idx      map[string]int // ajuda a mapear ao contrário, ir do nome das colunas para os idx
 	SizeT    int
 	OffSet   []int // byte onde começa
 	Sizes    []int // quantidade de bytes
@@ -75,6 +77,7 @@ func NewTb(nome string) Table {
 		Sizes:    make([]int, 0),
 		Dados:    make([]byte, 0),
 		Qtd:      0,
+		Idx:      make(map[string]int),
 	}
 }
 
@@ -103,7 +106,7 @@ func InsertExec(Sparser processor.InsertStruct) {
 			return
 		}
 		dataBytes, err := utils.Encoders[tb.ColsType[idx]](data)
-		OutPut("Dado de %s em bytes %v\n", name, dataBytes)
+		// OutPut("Dado de %s em bytes %v, em str '%s'\n", name, dataBytes, data)
 		if err != nil {
 			OutPut("Erro na conversão '%v'\n", dataBytes)
 			return
@@ -144,12 +147,184 @@ func InsertExec(Sparser processor.InsertStruct) {
 //		// pois la ele vai saber os tipos
 //	}
 func SelectExec(S processor.SelectStruct) {
+	if DBUSING == nil {
+		OutPut("Database não selecionada\n")
+		return
+	}
 	tb, ex := DBUSING.Tabelas[S.TableName]
 	if !ex {
 		OutPut("Tabela indicada não existe\n")
 		return
 	}
-	tb.PrintData()
+	if len(S.Fields) > len(tb.ColsName) {
+		OutPut("Mais colunas indicadas que as que existem na tabela\n")
+		return
+	}
+	all := false
+	for _, n := range S.Fields {
+		if n == "*" {
+			all = true
+			break
+		}
+		if !utils.Contains(tb.ColsName, n) {
+			OutPut("Coluna '%s' não existe na tabela\n", n)
+			return
+		}
+	}
+	// OutPut("'%v'\n", S)
+	if len(S.WhereClauses) == 0 {
+
+		if S.Fields[0] == "*" || all {
+			tb.GetColums(tb.ColsName)
+			return
+		}
+
+		tb.GetColums(S.Fields)
+	} else {
+		// OutPut("where\n")
+		if S.Fields[0] == "*" || all {
+			tb.GetColumsIf(tb.ColsName, S.WhereClauses)
+			return
+		}
+		tb.GetColumsIf(S.Fields, S.WhereClauses)
+	}
+}
+
+func (T *Table) GetColums(cols []string) {
+	f := func(b []byte) interface{} {
+		_ = PrintData(T, cols, b)
+		return nil
+	}
+	T.IterateData(f)
+}
+
+type CompareTypeAux interface {
+	int32 | float32
+}
+
+// sempre s <!> t
+func CompareTypes[T CompareTypeAux](e processor.Token, s, t T) bool {
+	switch e {
+	case processor.EQUAL:
+		return s == t
+	case processor.GREATER:
+		return s > t
+	case processor.GREATEREQUAL:
+		return s >= t
+	case processor.NOTEQUAL:
+		return s != t
+	case processor.LESS:
+		return s < t
+	case processor.LESSEQUAL:
+		return s <= t
+
+	}
+	return false
+}
+
+// trocar processo de varchar e bool para direto do byte
+func CompSet(s string, c processor.CmpSet, t processor.ColsType) bool {
+	s = strings.TrimSpace(s) // da trim no espaço de completar dados
+	switch t {
+	case processor.INT:
+		S, e := utils.StringToIntT(s)
+		if e != nil {
+			return false
+		}
+		C, e := utils.StringToIntT(c.Clause)
+		if e != nil {
+			return false
+		}
+		return CompareTypes(c.Sig, S, C)
+	case processor.VARCHAR:
+		switch c.Sig {
+		case processor.NOTEQUAL:
+			return s != c.Clause
+		case processor.EQUAL:
+			return s == c.Clause
+		default:
+			return false
+		}
+	case processor.FLOAT:
+		S, e := utils.StringToFloatT(s)
+		if e != nil {
+			return false
+		}
+		C, e := utils.StringToFloatT(c.Clause)
+		if e != nil {
+			return false
+		}
+		return CompareTypes(c.Sig, S, C)
+	case processor.BOOL:
+		switch c.Sig {
+		case processor.NOTEQUAL:
+			return s != c.Clause
+		case processor.EQUAL:
+			return s == c.Clause
+		default:
+			return false
+		}
+
+	}
+	return true
+}
+
+var PrintData = func(T *Table, cols []string, b []byte) error {
+	OutPut("---------------\n")
+	// se ele atende a todas as compara├º├Áes
+	for _, f := range cols {
+		d, e := T.GetDataStr(T.Idx[f], b)
+		if e != nil {
+			OutPut("Problema ao ler dado\n")
+			OutPut("---------------\n")
+			return nil
+		}
+		OutPut("'%s':'%s'\n", f, d)
+	}
+	OutPut("---------------\n")
+	return nil
+}
+
+func (T *Table) GetColumsIf(cols []string, ifs map[string]processor.CmpSet) {
+	f := func(b []byte) interface{} {
+		for s, i := range ifs {
+			id := T.Idx[s]
+			d, e := T.GetDataStr(id, b)
+			if e != nil {
+				return nil
+			}
+			if !CompSet(d, i, T.ColsType[id]) {
+				// OutPut("Num deu\n")
+				return nil
+			}
+		}
+		_ = PrintData(T, cols, b)
+		return nil
+	}
+	T.IterateData(f)
+}
+
+type IterateOverData func([]byte) interface{}
+
+// basicamente vai colocar o f para executar com o slice de uma row
+func (T *Table) IterateData(f IterateOverData) {
+	for i := 0; i < T.Qtd; i++ {
+		s := T.Dados[i*T.SizeT : ((i + 1) * T.SizeT)]
+		f(s)
+
+	}
+}
+
+func (T *Table) GetDataStr(idx int, data []byte) (string, error) {
+	if len(data) != T.SizeT {
+		return "", nil
+	}
+	b := data[T.OffSet[idx] : T.OffSet[idx]+T.Sizes[idx]]
+	a, e := utils.Decoders[T.ColsType[idx]](b)
+	if e != nil {
+		return "", errors.New("Erro na convers├úo")
+	}
+	return a, nil
 }
 
 // type ColsType uint8
@@ -192,12 +367,15 @@ func CreateExec(Sparser processor.CreateStruct) {
 		}
 		i := 0 // offset counter
 		t := NewTb(Sparser.Name)
+		idx := 0
 		for name, ty := range Sparser.Cols {
 			t.ColsName = append(t.ColsName, name)
 			t.ColsType = append(t.ColsType, ty.Type)
 			t.Sizes = append(t.Sizes, ty.Size)
 			t.OffSet = append(t.OffSet, i)
 			i = i + ty.Size
+			t.Idx[name] = idx
+			idx++
 		}
 		t.SizeT = i
 
@@ -253,43 +431,4 @@ func (D *Dabatase) PrintDB() {
 	for i := range D.Tabelas {
 		OutPut("'%s'\n", i)
 	}
-}
-
-type IterateOverData func([]byte) interface{}
-
-// basicamente vai colocar o f para executar com o slice de uma row
-func (T *Table) IterateData(f IterateOverData) {
-	for i := 0; i < T.Qtd; i++ {
-		s := T.Dados[i*T.SizeT : ((i + 1) * T.SizeT)]
-		f(s)
-
-	}
-}
-
-func (T *Table) PrintData() {
-	f := func(b []byte) interface{} {
-		OutPut("----------\n")
-		for idx, field := range T.ColsName {
-			d, e := T.GetDataStr(idx, b)
-			if e != nil {
-				return nil
-			}
-			OutPut("'%s':'%s'\n", field, d)
-		}
-		OutPut("----------\n")
-		return nil
-	}
-	T.IterateData(f)
-}
-
-func (T *Table) GetDataStr(idx int, data []byte) (string, error) {
-	if len(data) != T.SizeT {
-		return "", nil
-	}
-	b := data[T.OffSet[idx] : T.OffSet[idx]+T.Sizes[idx]]
-	a, e := utils.Decoders[T.ColsType[idx]](b)
-	if e != nil {
-		return "", errors.New("Erro na conversão")
-	}
-	return a, nil
 }
