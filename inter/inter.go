@@ -93,6 +93,9 @@ func ProcessDotComand(input string) utils.Status {
 			return utils.ERROR
 		}
 
+		// adicionar colunas e nome da database
+		core.DBComplete(core.DBUSING)
+
 	case DB:
 		if core.DBUSING == nil {
 			OutPut("Nenhum banco de dados selecionado\n")
@@ -142,8 +145,12 @@ func AddDir() {
 func ReplCreate() {
 	repl := liner.NewLiner()
 	defer repl.Close()
-	repl.SetWordCompleter(WComplete)
+	repl.SetWordCompleter(utils.WComplete)
 	AddDir()
+	for _, n := range processor.TokenListS {
+		utils.CommaAdd(strings.ToUpper(n))
+		utils.CommaAdd(strings.ToLower(n))
+	}
 
 	defer func() {
 		if closer, ok := utils.OutStreamW.(io.Closer); ok {
@@ -169,24 +176,6 @@ func ReplCreate() {
 		}
 
 	}
-}
-
-// Função para dar autocomplete no repl(Os comandos a ser autocomplete ele estao em utils)
-// TODO: Tentar talvez fazer um para qualquer palavra da linha
-func WComplete(line string, pos int) (head string, completions []string, tail string) {
-	words := strings.Split(line, " ")
-	w := words[len(words)-1]
-	return line[:len(line)-len(w)], CompleterAux(w), ""
-}
-
-// Completer bem basico apenas para substituir a primeira palavra
-func CompleterAux(line string) (c []string) {
-	for _, n := range utils.Commands {
-		if utils.StartWith(n, strings.ToLower(line)) {
-			c = append(c, n)
-		}
-	}
-	return
 }
 
 // processa os Meta comandos

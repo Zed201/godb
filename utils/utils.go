@@ -17,16 +17,16 @@ var (
 	NotRec      string = "Comando não reconhecido '%s'\n"
 	ArqErro     string = "Erro ao usar o arquivo '%v'\n"
 	MissingS    string = "No lugar de '%s', achou '%s'\n\n"
-	DbNotSelect string = "Banco de dados n├úo selecionado\n"
+	DbNotSelect string = "Banco de dados não selecionado\n"
 )
 
 // Comandos do autocomplete
 var Commands = []string{
 	".exit", ".echo", ".dump", ".out",
-	"insert", "select", ".read", "INSERT",
-	"SELECT", "VALUES", "FROM", "from",
-	".use", ".db", "create", "CREATE",
+	".read", ".use", ".db",
 }
+
+var CompleteDb []string = nil
 
 // apenas um alias para ver se começa
 func StartWith(s, p string) bool {
@@ -248,4 +248,28 @@ func Contains[T comparable](s []T, t T) bool {
 		}
 	}
 	return false
+}
+
+// Fun├º├úo para dar autocomplete no repl(Os comandos a ser autocomplete ele estao em utils)
+// TODO: Tentar talvez fazer um para qualquer palavra da linha
+func WComplete(line string, pos int) (head string, completions []string, tail string) {
+	words := strings.Split(line, " ")
+	w := words[len(words)-1]
+	return line[:len(line)-len(w)], CompleterAux(w), ""
+}
+
+// Completer bem basico apenas para substituir a primeira palavra
+func CompleterAux(line string) (c []string) {
+	for _, n := range Commands {
+		if StartWith(n, strings.ToLower(line)) {
+			c = append(c, n)
+		}
+	}
+
+	for _, n := range CompleteDb {
+		if StartWith(n, strings.ToLower(line)) {
+			c = append(c, n)
+		}
+	}
+	return
 }

@@ -190,14 +190,6 @@ func SelectExec(S processor.SelectStruct) {
 	}
 }
 
-func (T *Table) GetColums(cols []string) {
-	f := func(b []byte) interface{} {
-		_ = PrintData(T, cols, b)
-		return nil
-	}
-	T.IterateData(f)
-}
-
 type CompareTypeAux interface {
 	int32 | float32
 }
@@ -225,6 +217,31 @@ func CompareTypes[T CompareTypeAux](e processor.Token, s, t T) bool {
 // trocar processo de varchar e bool para direto do byte
 func CompSet(s string, c processor.CmpSet, t processor.ColsType) bool {
 	s = strings.TrimSpace(s) // da trim no espaço de completar dados
+	// fazer comps em bytes para facilitar
+	switch c.Sig {
+	case processor.NOTEQUAL:
+		S, e := utils.StringToByte(s)
+		if e != nil {
+			return false
+		}
+		T, e := utils.StringToByte(c.Clause)
+		if e != nil {
+			return false
+		}
+		return !utils.Compare(S, T)
+
+	case processor.EQUAL:
+		S, e := utils.StringToByte(s)
+		if e != nil {
+			return false
+		}
+		T, e := utils.StringToByte(c.Clause)
+		if e != nil {
+			return false
+		}
+		return utils.Compare(S, T)
+	}
+
 	switch t {
 	case processor.INT:
 		S, e := utils.StringToIntT(s)
@@ -236,15 +253,8 @@ func CompSet(s string, c processor.CmpSet, t processor.ColsType) bool {
 			return false
 		}
 		return CompareTypes(c.Sig, S, C)
-	case processor.VARCHAR:
-		switch c.Sig {
-		case processor.NOTEQUAL:
-			return s != c.Clause
-		case processor.EQUAL:
-			return s == c.Clause
-		default:
-			return false
-		}
+	case processor.VARCHAR: // se chegar aqui ele ta com comparação sem sentido para string
+		return false
 	case processor.FLOAT:
 		S, e := utils.StringToFloatT(s)
 		if e != nil {
@@ -255,37 +265,29 @@ func CompSet(s string, c processor.CmpSet, t processor.ColsType) bool {
 			return false
 		}
 		return CompareTypes(c.Sig, S, C)
-	case processor.BOOL:
-		switch c.Sig {
-		case processor.NOTEQUAL:
-			return s != c.Clause
-		case processor.EQUAL:
-			return s == c.Clause
-		default:
-			return false
-		}
-
+	case processor.BOOL: // mesma logica da string
+		return false
 	}
-	return true
+	return false
 }
 
-var PrintData = func(T *Table, cols []string, b []byte) error {
-	OutPut("---------------\n")
+var PrintRow = func(T *Table, cols []string, b []byte) error {
 	// se ele atende a todas as compara├º├Áes
 	for _, f := range cols {
 		d, e := T.GetDataStr(T.Idx[f], b)
 		if e != nil {
 			OutPut("Problema ao ler dado\n")
-			OutPut("---------------\n")
+			OutPut("\n" + strings.Repeat("-", T.SizeT*2) + "\n")
 			return nil
 		}
-		OutPut("'%s':'%s'\n", f, d)
+		OutPut("|%s |", d)
 	}
-	OutPut("---------------\n")
+	OutPut("\n" + strings.Repeat("-", T.SizeT*2) + "\n")
 	return nil
 }
 
 func (T *Table) GetColumsIf(cols []string, ifs map[string]processor.CmpSet) {
+	T.PrintHeaders(cols)
 	f := func(b []byte) interface{} {
 		for s, i := range ifs {
 			id := T.Idx[s]
@@ -294,14 +296,29 @@ func (T *Table) GetColumsIf(cols []string, ifs map[string]processor.CmpSet) {
 				return nil
 			}
 			if !CompSet(d, i, T.ColsType[id]) {
-				// OutPut("Num deu\n")
 				return nil
 			}
 		}
-		_ = PrintData(T, cols, b)
+		_ = PrintRow(T, cols, b)
 		return nil
 	}
 	T.IterateData(f)
+}
+
+func (T *Table) GetColums(cols []string) {
+	T.PrintHeaders(cols)
+	f := func(b []byte) interface{} {
+		_ = PrintRow(T, cols, b)
+		return nil
+	}
+	T.IterateData(f)
+}
+
+func (T *Table) PrintHeaders(cols []string) {
+	for _, n := range cols {
+		OutPut("| %s |", n)
+	}
+	OutPut("\n" + strings.Repeat("-", T.SizeT*2) + "\n")
 }
 
 type IterateOverData func([]byte) interface{}
@@ -359,6 +376,7 @@ func CreateExec(Sparser processor.CreateStruct) {
 			return
 		}
 		DBUSING = &db
+		DBComplete(DBUSING)
 
 	} else { // table
 		if DBUSING == nil {
@@ -430,5 +448,16 @@ func (D *Dabatase) PrintDB() {
 	OutPut("Nome: %s\n", D.Nome)
 	for i := range D.Tabelas {
 		OutPut("'%s'\n", i)
+	}
+}
+
+func DBComplete(d *Dabatase) {
+	utils.CompleteDb = nil // reseta para deixar com o db certo
+	utils.CompleteDb = append(utils.CompleteDb, DBUSING.Nome)
+	for s, t := range DBUSING.Tabelas {
+		utils.CompleteDb = append(utils.CompleteDb, s)
+		for _, n := range t.ColsName {
+			utils.CompleteDb = append(utils.CompleteDb, n)
+		}
 	}
 }
