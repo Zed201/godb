@@ -228,19 +228,17 @@ func DeleteExec(S processor.DeleteStruct) {
 		return nil
 	}
 	tb.IterateData(f)
-	OutPut("Deletar os indices '%v'\n", deleteIdx)
+	// OutPut("Deletar os indices '%v'\n", deleteIdx)
 	// função nenhum pouco eficiente mas funciona
 	// ta dando algum erro
-	OutPut("'%v'\n", tb.Dados)
+	// OutPut("'%v'\n", tb.Dados)
 	for _, i := range deleteIdx {
-		// s := T.Dados[i*T.SizeT : ((i + 1) * T.SizeT)]
-		OutPut("Deetando %d, [%d:%d]\n", i, i*tb.SizeT, (i+1)*tb.SizeT)
-		// tb.Dados = append(tb.Dados, utils.DeleteIndex(tb.Dados, i)...)
-		tb.Dados = utils.DeleteIndex(tb.Dados, i*tb.SizeT, ((i+1)*tb.SizeT)+1)
-		// tb.Qtd--
+		// OutPut("Eliminando [%d:%d]\n", i*tb.SizeT, (i+1)*tb.SizeT-1)
+		tb.Dados = utils.DeleteIndex(tb.Dados, i*tb.SizeT, ((i+1)*tb.SizeT)-1)
 	}
 	tb.Qtd = tb.Qtd - len(deleteIdx)
-	OutPut("'%v'\n", tb.Dados)
+	// OutPut("'%v'\n", tb.Dados)
+	// OutPut("SizeT %t\n", tb.SizeT)
 	DBUSING.Tabelas[tb.Nome] = tb
 }
 

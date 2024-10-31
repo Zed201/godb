@@ -88,7 +88,7 @@ func isLetter(ch rune) bool {
 	return (ch >= 'a' && ch <= 'z') || (ch >= 'A' && ch <= 'Z') || ch == '_' // considerar pois em geral tem nos nomes
 }
 
-func isDigit(ch rune) bool { return (ch >= '0' && ch <= '9') || ch == '.' } // para pontos flutuantes
+func isDigit(ch rune) bool { return (ch >= '0' && ch <= '9') || ch == '.' || ch == '-' } // para pontos flutuantes
 
 type SelectStatement struct {
 	Fields    []string // se len == 0 é todos, se não é so os escolhidos
